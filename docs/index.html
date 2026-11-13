@@ -83,7 +83,7 @@
   <div class="row" style="margin-top:4px"><div class="label"><span>国勢調査の年</span><span id="yearVal"></span></div>
     <input type="range" id="year" min="2000" max="2020" step="5" value="2020"></div>
   <div class="legend" id="legend"></div>
-  <label class="cb"><input type="checkbox" id="pyr" checked>男女・年齢別のグラフ<span class="key"><i style="background:#5aa0f0"></i>男 <i style="background:#f08ca0"></i>女</span></label>
+  <label class="cb"><input type="checkbox" id="pyr">男女・年齢別のグラフ<span class="key"><i style="background:#5aa0f0"></i>男 <i style="background:#f08ca0"></i>女</span></label>
   <div class="row" style="margin-top:6px"><div class="label"><span>グラフ</span></div>
     <select id="chartSel" style="width:100%;background:#1d232c;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px">
       <option value="">表示しない</option><option value="longrun">人口の推移（1920〜2020年）</option>
@@ -101,7 +101,7 @@
 const params = new URLSearchParams(location.search);
 const code = params.get('code') || '01227';
 const C = deck.COORDINATE_SYSTEM.METER_OFFSETS;
-const state = { opOut: 0.2, opIn: 0.8, ex: 1.5, popColor: true, year: 2020, pyr: true, chart: '', lblMuni: true, lblSmall: true, roads: true, rail: true, water: true };
+const state = { opOut: 0.2, opIn: 0.8, ex: 1.5, popColor: true, year: 2020, pyr: false, chart: '', lblMuni: true, lblSmall: true, roads: true, rail: true, water: true };
 let D, origin, mesh, kx, ky;
 
 const toXY = (lon, lat) => [(lon - origin[0]) * kx, (lat - origin[1]) * ky];
