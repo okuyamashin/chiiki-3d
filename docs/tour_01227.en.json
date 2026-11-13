@@ -1,0 +1,85 @@
+{
+ "lang": "en",
+ "note": "English subtitles: one entry per Japanese sentence of tour_01227.json (same order), so cues share the Japanese timing.",
+ "steps": [
+  {"title": "The least populated city", "sentences": [
+   "This is Utashinai, Hokkaido.",
+   "In 2020 its population was 2,989.",
+   "That is the smallest of any city in Japan.",
+   "53 percent of residents are 65 or older, also the highest of any city in Japan."]},
+  {"title": "Only 4.7% of the land is livable", "sentences": [
+   "Most of the city is mountains, cut by many deep valleys.",
+   "Land gentle enough and close enough to a road to live on is only 4.7 percent of the city.",
+   "People can live only on the narrow valley floors along the rivers and roads."]},
+  {"title": "A city without a station", "sentences": [
+   "There is no railway station in the city.",
+   "The Utashinai Line was closed in 1988.",
+   "The nearest stations are Sunagawa and Takikawa to the west, about 10 km from the city center."]},
+  {"title": "A coal-mining town", "sentences": [
+   "Utashinai was born as a coal-mining town.",
+   "At its peak, around 1948, about 46,000 people lived here.",
+   "As the graph shows, from the 1960s the population fell off a cliff with each mine closure; after the closures of 1971, 1988 and 1995 it was down to 2,989 in 2020."]},
+  {"title": "Compared with the surroundings", "sentences": [
+   "Let's compare it with the surrounding area.",
+   "From 2000 to 2020, Utashinai's population halved.",
+   "Over the same period, the population within 20 km fell by 27 percent, and within 50 km by 16 percent.",
+   "The whole region is shrinking, but Utashinai stands out."]},
+  {"title": "How people make a living now", "sentences": [
+   "So what do people in Utashinai work at today?",
+   "In 2020, 1,150 people were working, 40 percent of those aged 15 and over.",
+   "The largest industry is medical care and welfare, with 226 people, one in five workers.",
+   "Next come wholesale and retail, construction, and public service.",
+   "Agriculture, forestry, fishing and mining, coal included, are down to just 27 people."]},
+  {"title": "Nine districts", "sentences": [
+   "The city is divided into nine districts, called aza.",
+   "The darker the green, the more people live there.",
+   "People live only in the northern valleys that open toward Sunagawa and Akabira."]},
+  {"title": "The center: Monju and Honcho", "sentences": [
+   "The center is Monju in the west and Honcho in the north.",
+   "These two districts hold 60 percent of the city's population."]},
+  {"title": "The fringe: four valley districts", "sentences": [
+   "Between them and up the valleys lie Kamui, Utagami, Nakamura and Kamiuta.",
+   "Their populations fell by 60 to 70 percent in 20 years."]},
+  {"title": "The exception: Toko", "sentences": [
+   "The exception is Toko.",
+   "Over 20 years its population barely changed, from 167 to 169.",
+   "Its share of children, 7.7 percent, is the highest in the city.",
+   "Women in their twenties and thirties increased from 9 to 16."]},
+  {"title": "Uninhabited: Shin-uta and Nishiyama", "sentences": [
+   "Shin-uta and Nishiyama in the south still have names, but nobody lived there even in 2000.",
+   "A third of the city is already land where no one lives."]},
+  {"title": "Work by district", "sentences": [
+   "Now let's look at work district by district.",
+   "In Honcho, where City Hall is, half of those aged 15 and over work, and many are in public service.",
+   "Toko also has a high share of workers, 46 percent, and 17 percent of them are in public service.",
+   "In Utagami and Kamui, on the other hand, only one in three people aged 15 and over works."]},
+  {"title": "From 2000 to 2020", "sentences": [
+   "Let's step from 2000 to 2020, five years at a time.",
+   "The color fades first in the far valleys.",
+   "The age charts change from a bulge in the middle to a top-heavy shape."]},
+  {"title": "Young women leave first", "sentences": [
+   "Who is leaving?",
+   "Women aged 20 to 39 fell from 502 to 135 in 20 years, a drop of 73 percent.",
+   "That is about one and a half times as fast as the population as a whole.",
+   "They leave in their early twenties for study or work, and again in their late twenties, for marriage and other reasons."]},
+  {"title": "No return in later life", "sentences": [
+   "Then, do people come back when they get older?",
+   "Following people in their fifties and sixties every five years, there was no period when their numbers grew.",
+   "Even after inheriting a house, hardly anyone seems to come back to live here."]},
+  {"title": "How work has changed", "sentences": [
+   "The kind of work has changed too.",
+   "The number of workers fell by almost half, from 2,183 in 2000 to 1,150 in 2020.",
+   "Construction fell sharply from 388 to 168, and manufacturing from 276 to 118.",
+   "Medical care and welfare, by contrast, fell only from 293 in 2005 to 226, and its share of workers rose from 16 to 20 percent.",
+   "Caring for the elderly is becoming the town's main work."]},
+  {"title": "Utashinai in 2050", "sentences": [
+   "If these trends continue, the population in 2050 is expected to be about 780, with around 20 children.",
+   "City-maintained roads would go from 13 meters per person today to about 50 meters."]},
+  {"title": "What is shared, and what is Utashinai's own", "sentences": [
+   "To sum up.",
+   "People disappear first from places far from the center, young women leave first, and the elderly do not come back.",
+   "This pattern is shared by depopulating areas across Hokkaido.",
+   "Having only coal as an industry, and dropping off a cliff with each mine closure, is shared by coal-mining towns.",
+   "And a valley terrain where only 4.7 percent of the land is livable is a condition unique to Utashinai."]}
+ ]
+}

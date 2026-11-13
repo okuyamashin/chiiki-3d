@@ -55,7 +55,10 @@ node scripts/render_intro.mjs --code 01227      # オープニング（音なし
 node scripts/make_intro_audio.mjs               # オープニングの音 → output/audio/intro.wav
 node scripts/render_tour.mjs --code 01227       # ナレーション付きツアー → output/video/tour_01227.mp4（20分ほど）
 sh scripts/make_movie.sh 01227                  # つなげる → output/video/movie_01227.mp4
+.venv/bin/python -I scripts/make_subtitles.py   # 日本語・英語字幕（SRT）とYouTubeのチャプター
 ```
+
+英語字幕の訳は `tour_<code>.en.json`（ナレーションの1文ごとに1行）にあります。
 
 動画では字幕や地名が読めるよう、ページを1.5倍の大きさで描きます（`--ui` で変更）。
 
