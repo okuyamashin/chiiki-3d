@@ -45,6 +45,15 @@ sh scripts/publish_pages.sh 01227                    # 公開用に docs/ へコ
 
 ビューアは `output/3d/` を配信して `terrain.html?code=01227` を開きます（`python3 -m http.server 8791 --directory output/3d`）。
 
+### イントロの動画書き出し
+
+イントロを1コマずつ描いて MP4 にします（Google Chrome、Node.js、ffmpeg が必要）。ビューアを配信した状態で実行します。
+
+```sh
+npm install
+node scripts/render_intro.mjs --code 01227      # → output/video/intro_01227.mp4
+```
+
 ### ナレーション
 
 ツアーの台本は `tour_<code>.json` です。各場面に説明文、カメラの位置、表示する年やグラフを書きます。`readings` は読み上げのときだけ使う読み（例：字 → あざ）です。
@@ -62,5 +71,5 @@ sh scripts/publish_pages.sh 01227                    # 公開用に docs/ へコ
 - 小地域の境界・人口・年齢・産業別就業者：政府統計の総合窓口（e-Stat）国勢調査 小地域集計（総務省統計局）を加工して作成
 - 1920〜2010年の歌志内市の人口：歌志内市「まち・ひと・しごと創生総合戦略」（平成28年1月）掲載の国勢調査の値
 - ナレーション音声：ElevenLabs（声：Konoha、モデル：Eleven v4）
-- イントロの地形と写真：Terrain Tiles（Mapzen / AWS Open Data）、国土地理院 全国最新写真（シームレス）
+- イントロの写真：国土地理院 全国最新写真（シームレス）
 - 3D表示：deck.gl

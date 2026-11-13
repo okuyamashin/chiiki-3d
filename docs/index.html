@@ -55,8 +55,7 @@
   #chart .lg i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:3px; vertical-align:-1px; }
   #chart .cnote { font-size:10.5px; color:var(--muted); margin-top:6px; line-height:1.5; }
   @media (max-width:900px) { #chart { top:auto; bottom:190px; width:auto; left:16px; } }
-  #telop { position:absolute; left:0; right:0; bottom:18%; text-align:center; pointer-events:none; opacity:0; transition:opacity 1.2s; }
-  #telop.on { opacity:1; }
+  #telop { position:absolute; left:0; right:0; bottom:18%; text-align:center; pointer-events:none; opacity:0; }
   #telopMain { font-size:clamp(30px, 5.5vw, 64px); font-weight:800; letter-spacing:.08em; color:#fff;
     text-shadow:0 2px 6px rgba(0,0,0,.85), 0 0 24px rgba(0,0,0,.6); }
   #telopSub { font-size:clamp(17px, 2.6vw, 30px); font-weight:600; margin-top:8px; color:#ffe2b0; letter-spacing:.05em;
@@ -426,17 +425,32 @@ document.getElementById('chartSel').onchange = e => { state.chart = e.target.val
 const INTRO_DEF = { from: { longitude: 137.6, latitude: 37.2, zoom: 4.4, pitch: 30, bearing: 330 }, duration: 16000,
   telop: ['{name}', '人口{pop}人（2020年）'] };
 let introOn = false, introReady = null;
+// GSI photo tiles fill areas without imagery with flat grey (52,52,52); paint those pixels a dark sea colour
+async function photoTile({ url, signal }) {
+  const r = await fetch(url, { signal }).catch(() => null);
+  if (!r || !r.ok) return null;
+  const img = await createImageBitmap(await r.blob());
+  const c = new OffscreenCanvas(img.width, img.height), g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const v = px[i];
+    if (v >= 46 && v <= 58 && Math.abs(px[i + 1] - v) <= 3 && Math.abs(px[i + 2] - v) <= 3) { px[i] = 13; px[i + 1] = 21; px[i + 2] = 34; }
+  }
+  g.putImageData(d, 0, 0);
+  return c.transferToImageBitmap();
+}
 if (params.get('intro')) document.body.classList.add('intro');  // hide the panels from the first frame when recording
-// one object for the whole run: a new decoder each frame would make every tile reload
-const JP_DECODER = { rScaler: 256 * 1.5, gScaler: 1.5, bScaler: 1.5 / 256, offset: -32768 * 1.5 };
 function introLayers(jf, lf) {  // jf: Japan terrain opacity, lf: local scene opacity
   const t = D.munis.find(m => m.target), out = [];
   if (jf > 0) out.push(
-    new deck.TerrainLayer({ id: 'japan', opacity: jf, minZoom: 0, maxZoom: 12, strategy: 'no-overlap',
+    // flat photo tiles: at the scale of all Japan relief hardly shows, and plain bitmaps never break up
+    // extent keeps tiles off the 180th meridian, where a tile's bounds wrap and it stretches into a grey wedge
+    new deck.TileLayer({ id: 'japan', opacity: jf, minZoom: 2, maxZoom: 15, tileSize: 256, extent: [90, 0, 179.9, 70],
+      data: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', getTileData: photoTile,
       onViewportLoad: () => introReady && introReady(),
-      elevationData: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
-      texture: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
-      elevationDecoder: JP_DECODER, meshMaxError: 6, color: [14, 17, 22] }),  // tiles without imagery blend into the background
+      renderSubLayers: p => p.data && new deck.BitmapLayer(p, { data: null, image: p.data,
+        bounds: [p.tile.bbox.west, p.tile.bbox.south, p.tile.bbox.east, p.tile.bbox.north] }) }),
     new deck.PathLayer({ id: 'intro-outline', data: t.rings, getPath: r => r, getColor: [255, 214, 90], getWidth: 3,
       widthUnits: 'pixels', widthMinPixels: 2, opacity: jf, parameters: { depthCompare: 'always' } }),
     new deck.ScatterplotLayer({ id: 'intro-pin', data: [t], getPosition: d => d.label, getRadius: 9, radiusUnits: 'pixels',
@@ -445,38 +459,54 @@ function introLayers(jf, lf) {  // jf: Japan terrain opacity, lf: local scene op
   if (lf > 0) for (const l of layers()) out.push(l.clone({ opacity: (l.props.opacity ?? 1) * lf }));
   return out;
 }
-function runIntro(then) {
-  if (!D || introOn) return;
-  pauseTour(); introOn = true; document.body.classList.add('intro');
-  const cfg = { ...INTRO_DEF, ...(TOUR && TOUR.intro || {}) };
+// Timeline (ms): hold on Japan (HOLD) -> turn and zoom (duration) -> stay on the usual view (TAIL) -> telop fades (FADE).
+// introAt(ms) draws any moment of it, so the same code plays live and renders frame by frame (?intro=1&render=1).
+const HOLD = 1200, TAIL = 2500, FADE = 1200;
+let introCfg = null;
+function introSetup() {
+  introCfg = { ...INTRO_DEF, ...(TOUR && TOUR.intro || {}) };
   const pop = D.small.reduce((a, s) => a + (s.pops?.[2020] ?? s.pop ?? 0), 0);
   const fill = x => x.replace('{name}', D.name).replace('{pop}', pop.toLocaleString());
-  document.getElementById('telopMain').textContent = fill(cfg.telop[0]);
-  document.getElementById('telopSub').textContent = fill(cfg.telop[1] || '');
-  const telop = document.getElementById('telop'); telop.classList.remove('on');
-  map.setProps({ controller: false });
-  const A = { ...cfg.from }, B = HOME, T = cfg.duration;
-  let t0 = Infinity;
+  document.getElementById('telopMain').textContent = fill(introCfg.telop[0]);
+  document.getElementById('telopSub').textContent = fill(introCfg.telop[1] || '');
+  document.body.classList.add('intro'); map.setProps({ controller: false });
+  return HOLD + introCfg.duration + TAIL + FADE;  // total length
+}
+function introAt(ms) {
+  const A = introCfg.from, B = HOME, T = introCfg.duration, telop = document.getElementById('telop');
   const sm = x => x * x * (3 - 2 * x), cl = x => Math.max(0, Math.min(1, x));
-  // start moving once the first view of Japan has loaded (or after 8 s at most), holding it for a moment
-  const go = () => { if (t0 === Infinity) t0 = performance.now() + 1200; introReady = null; };
+  const t = cl((ms - HOLD) / T), z = sm(t), c = 1 - (1 - cl(t / 0.6)) ** 3;  // centre arrives early, zoom keeps going
+  setView({ longitude: A.longitude + (B.longitude - A.longitude) * c, latitude: A.latitude + (B.latitude - A.latitude) * c,
+    zoom: A.zoom + (B.zoom - A.zoom) * z, pitch: A.pitch + (B.pitch - A.pitch) * z,
+    bearing: B.bearing + (A.bearing - B.bearing) * (1 - z) });
+  const f = cl((t - 0.82) / 0.18);  // last part: Japan fades out, the usual scene fades in
+  map.setProps({ layers: introLayers(1 - f, f) });
+  const tin = cl((ms - HOLD - 0.35 * T) / FADE), tout = cl((ms - HOLD - T - TAIL) / FADE);
+  telop.style.opacity = Math.min(tin, 1 - tout);
+}
+function introEnd() {
+  document.getElementById('telop').style.opacity = 0; introOn = false; document.body.classList.remove('intro');
+  map.setProps({ controller: true }); redraw();
+}
+// frame rendering helpers for scripts/render_intro.mjs
+window.introRender = { setup: () => introSetup(), at: ms => introAt(ms),
+  loaded: () => (map.layerManager?.getLayers() || []).every(l => l.isLoaded) };
+function runIntro(then) {
+  if (!D || introOn) return;
+  pauseTour(); introOn = true;
+  const total = introSetup();
+  let t0 = Infinity;
+  // start once the first view of Japan has loaded (or after 8 s at most)
+  const go = () => { if (t0 === Infinity) t0 = performance.now(); introReady = null; };
   introReady = go; setTimeout(go, 8000);
-  setView(A); map.setProps({ layers: introLayers(1, 0) });
+  introAt(0);
   const tick = now => {
     if (!introOn) return;
-    if (now < t0) return requestAnimationFrame(tick);
-    const t = cl((now - t0) / T), z = sm(t), c = 1 - (1 - cl(t / 0.6)) ** 3;  // centre arrives early, zoom keeps going
-    setView({ longitude: A.longitude + (B.longitude - A.longitude) * c, latitude: A.latitude + (B.latitude - A.latitude) * c,
-      zoom: A.zoom + (B.zoom - A.zoom) * z, pitch: A.pitch + (B.pitch - A.pitch) * z,
-      bearing: B.bearing + (A.bearing - B.bearing) * (1 - z) });
-    if (t > 0.35) telop.classList.add('on');
-    const f = cl((t - 0.82) / 0.18);  // last part: Japan fades out, the usual scene fades in
-    map.setProps({ layers: introLayers(1 - f, f) });
-    if (t < 1) return requestAnimationFrame(tick);
-    setTimeout(() => {
-      telop.classList.remove('on'); introOn = false; document.body.classList.remove('intro');
-      map.setProps({ controller: true }); redraw(); if (then) then();
-    }, 2500);
+    if (now >= t0) {
+      const ms = now - t0; introAt(Math.min(ms, total));
+      if (ms >= total) { introEnd(); if (then) then(); return; }
+    }
+    requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 }
@@ -488,7 +518,8 @@ let TOUR = null, step = -1, playing = false, run = 0, yearTimer = null, camAnim 
 async function loadTour() {
   try { TOUR = await (await fetch(`tour_${code}.json`)).json(); } catch { TOUR = null; }
   if (TOUR) { tourEl.hidden = false; showPos(); }
-  if (params.get('intro')) setTimeout(() => runIntro(), 1000);
+  if (params.get('intro') && !params.get('render')) setTimeout(() => runIntro(), 1000);
+  if (params.get('render')) window.introRender.ready = true;
 }
 function showPos() {
   document.getElementById('tPos').textContent = step < 0 ? `${TOUR.steps.length}場面` : `${step + 1} / ${TOUR.steps.length}`;

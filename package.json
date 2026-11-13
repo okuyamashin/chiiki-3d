@@ -1,0 +1,9 @@
+{
+  "name": "chiiki-3d",
+  "private": true,
+  "type": "module",
+  "description": "Node tools for chiiki-3d (frame rendering of the 3D viewer)",
+  "devDependencies": {
+    "playwright-core": "1.52.0"
+  }
+}

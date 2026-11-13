@@ -12,3 +12,6 @@ data/raw/*
 
 # build output; the published copy lives in docs/
 output/
+
+# node tools
+node_modules/
