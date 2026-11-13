@@ -5,7 +5,8 @@
 // tiles, so the video is smooth however slow the network or GPU is.
 //
 // Needs: the viewer served at --url (default http://localhost:8791/terrain.html), Google Chrome, ffmpeg.
-// Run:   node scripts/render_intro.mjs [--code 01227] [--fps 30] [--size 1920x1080] [--url ...]
+// Run:   node scripts/render_intro.mjs [--code 01227] [--fps 30] [--size 1920x1080] [--ui 1.5] [--url ...]
+//        --ui scales the page (CSS pixels = size / ui), as in render_tour.mjs, so the two cut together.
 // Out:   output/video/intro_<code>.mp4  (frames in output/video/frames_<code>/)
 
 import { chromium } from 'playwright-core';
@@ -16,13 +17,13 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : d; };
-const code = arg('code', '01227'), fps = +arg('fps', 30), [W, H] = arg('size', '1920x1080').split('x').map(Number);
+const code = arg('code', '01227'), fps = +arg('fps', 30), ui = +arg('ui', 1.5), [W, H] = arg('size', '1920x1080').split('x').map(Number);
 const url = `${arg('url', 'http://localhost:8791/terrain.html')}?code=${code}&intro=1&render=1`;
 const outDir = join(ROOT, 'output', 'video'), frames = join(outDir, `frames_${code}`);
 rmSync(frames, { recursive: true, force: true }); mkdirSync(frames, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-gpu', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: Math.round(W / ui), height: Math.round(H / ui) }, deviceScaleFactor: ui });
 page.on('pageerror', e => console.error('page error:', e.message));
 await page.goto(url);
 await page.waitForFunction(() => window.introRender && window.introRender.ready, null, { timeout: 120000 });

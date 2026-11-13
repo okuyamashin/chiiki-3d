@@ -60,6 +60,8 @@
     text-shadow:0 2px 6px rgba(0,0,0,.85), 0 0 24px rgba(0,0,0,.6); }
   #telopSub { font-size:clamp(17px, 2.6vw, 30px); font-weight:600; margin-top:8px; color:#ffe2b0; letter-spacing:.05em;
     text-shadow:0 2px 5px rgba(0,0,0,.85), 0 0 18px rgba(0,0,0,.6); }
+  body.render .panel, body.render #tour { display:none; }
+  body.render #caption { left:50%; right:auto; transform:translateX(-50%); width:min(760px, calc(100% - 32px)); max-width:none; }
   body.intro .panel, body.intro #tour, body.intro #caption, body.intro #chart { opacity:0; pointer-events:none; transition:opacity .6s; }
   .note { font-size:11px; color:var(--muted); margin-top:10px; line-height:1.5; }
   @media (max-width:600px) { .panel { top:auto; bottom:16px; } }
@@ -489,7 +491,8 @@ function introEnd() {
   map.setProps({ controller: true }); redraw();
 }
 // frame rendering helpers for scripts/render_intro.mjs
-window.introRender = { setup: () => introSetup(), at: ms => introAt(ms),
+// for video the intro lands on what the tour's first step shows, so the cut between the two is seamless
+window.introRender = { setup: () => { if (TOUR) { const o = TOUR.steps[0].set || {}; for (const k in o) state[k] = o[k]; } return introSetup(); }, at: ms => introAt(ms),
   loaded: () => (map.layerManager?.getLayers() || []).every(l => l.isLoaded) };
 function runIntro(then) {
   if (!D || introOn) return;
@@ -556,6 +559,49 @@ function flyTo(target, ms = 2200) {  // own easing so the controlled viewState s
   camAnim = requestAnimationFrame(tick);
 }
 const sentences = t => t.match(/[^。]+。?/g) || [t];
+
+// ---- frame-by-frame tour for video (scripts/render_tour.mjs). Same timing as playing live with audio:
+// camera flies 2.2 s from the step start, narration starts at +1.2 s, the next step 0.9 s after it ends.
+const FLY = 2200, SAY = 1200, GAP = 900, END = 2500;
+let TR = null;
+window.tourRender = {
+  setup(durs) {  // durs: narration length of each step in seconds
+    const S = [], A = []; let t = 0;
+    TOUR.steps.forEach((st, i) => { S.push(t); A.push(t + SAY); t += SAY + durs[i] * 1000 + GAP; });
+    TR = { S, A, durs, total: t - GAP + END, cur: -1 };
+    document.body.classList.add('render'); panelEl.classList.add('dim'); capEl.hidden = false;
+    map.setProps({ controller: false });
+    return { total: TR.total, audioAt: A };
+  },
+  at(ms) {
+    const st = TOUR.steps, S = TR.S;
+    let i = 0; while (i + 1 < st.length && S[i + 1] <= ms) i++;
+    if (i !== TR.cur) {  // entering a step: its settings, caption and camera path
+      TR.cur = i; const s = st[i];
+      state.focus = s.focus || null;
+      applyState(Object.assign({}, ...st.slice(0, i + 1).map(x => x.set || {})));
+      TR.from = i === 0 ? { ...HOME } : (TR.to || { ...HOME });
+      TR.to = s.view ? viewFor(s.view, s.focus || []) : { ...TR.from };
+      TR.parts = sentences(s.text); TR.cum = TR.parts.reduce((a, p) => [...a, (a.at(-1) || 0) + p.length], []);
+      document.getElementById('capPart').textContent = s.part || '';
+      document.getElementById('capTitle').textContent = s.title || '';
+      document.getElementById('capText').innerHTML = TR.parts.map((p, k) => `<span data-i="${k}">${p}</span>`).join('');
+      TR.mark = -2; TR.year = null;
+    }
+    const s = st[i], f = TR.from, to = TR.to;
+    const u = Math.min(1, (ms - S[i]) / FLY), e = u < .5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+    const db = ((to.bearing - f.bearing) % 360 + 540) % 360 - 180, L = k => f[k] + (to[k] - f[k]) * e;
+    setView({ longitude: L('longitude'), latitude: L('latitude'), zoom: L('zoom'), pitch: L('pitch'), bearing: f.bearing + db * e });
+    if (s.yearAnim) {  // year steps every 2.6 s from the step start, as when playing
+      const [y0, y1] = s.yearAnim, y = Math.min(y1, y0 + 5 * Math.floor((ms - S[i]) / 2600));
+      if (y !== state.year) applyState({ year: y });
+    }
+    const a = (ms - TR.A[i]) / (TR.durs[i] * 1000);  // highlight the sentence being read
+    const k = a < 0 || a >= 1 ? -1 : TR.cum.findIndex(c => a * TR.cum.at(-1) < c);
+    if (k !== TR.mark) { TR.mark = k; document.querySelectorAll('#capText span').forEach(x => x.classList.toggle('now', +x.dataset.i === k)); }
+  },
+  loaded: () => (map.layerManager?.getLayers() || []).every(l => l.isLoaded),
+};
 let jaVoice = null;
 function pickVoice() {
   const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith('ja'));

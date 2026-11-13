@@ -45,14 +45,19 @@ sh scripts/publish_pages.sh 01227                    # 公開用に docs/ へコ
 
 ビューアは `output/3d/` を配信して `terrain.html?code=01227` を開きます（`python3 -m http.server 8791 --directory output/3d`）。
 
-### イントロの動画書き出し
+### 動画の書き出し
 
-イントロを1コマずつ描いて MP4 にします（Google Chrome、Node.js、ffmpeg が必要）。ビューアを配信した状態で実行します。
+オープニングと説明ツアーを1コマずつ描いて、1本の MP4 にします（Google Chrome、Node.js、ffmpeg が必要）。ビューアを配信した状態で実行します。
 
 ```sh
 npm install
-node scripts/render_intro.mjs --code 01227      # → output/video/intro_01227.mp4
+node scripts/render_intro.mjs --code 01227      # オープニング（音なし）→ output/video/intro_01227.mp4
+node scripts/make_intro_audio.mjs               # オープニングの音 → output/audio/intro.wav
+node scripts/render_tour.mjs --code 01227       # ナレーション付きツアー → output/video/tour_01227.mp4（20分ほど）
+sh scripts/make_movie.sh 01227                  # つなげる → output/video/movie_01227.mp4
 ```
+
+動画では字幕や地名が読めるよう、ページを1.5倍の大きさで描きます（`--ui` で変更）。
 
 ### ナレーション
 
