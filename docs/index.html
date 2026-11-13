@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地形3Dビュー</title>
+<script src="https://unpkg.com/deck.gl@9.0.38/dist.min.js"></script>
+<style>
+  :root { --bg:#0e1116; --panel:rgba(20,24,31,.9); --fg:#e8eaee; --muted:#9aa3b0; --line:#2b323d; --accent:#ffb347; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif; overflow:hidden; }
+  #map { position:absolute; inset:0; }
+  .panel { position:absolute; top:16px; left:16px; width:320px; max-width:calc(100% - 32px); box-sizing:border-box;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; backdrop-filter:blur(6px); }
+  h1 { font-size:16px; margin:0 0 2px; font-weight:600; }
+  .sub { font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .row { margin:12px 0 4px; }
+  .label { font-size:12px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  label.cb { font-size:12.5px; display:flex; gap:6px; align-items:center; margin:4px 0; cursor:pointer; }
+  .key { margin-left:auto; font-size:10.5px; white-space:nowrap; color:var(--muted); display:flex; gap:3px; align-items:center; }
+  .key i { display:inline-block; width:12px; height:3px; border-radius:2px; margin-left:4px; }
+  .key i.rail { height:4px; background:repeating-linear-gradient(90deg,#222 0 3px,#fff 3px 6px); border:1px solid #222; }
+  .legend { display:flex; gap:2px; margin:2px 0 8px 22px; font-size:10.5px; color:var(--muted); }
+  .legend span { flex:1; text-align:center; }
+  .legend span i { display:block; height:8px; border-radius:2px; margin-bottom:2px; }
+  #charts { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .pyr { position:absolute; transform:translate(-50%, 0); background:rgba(14,17,22,.72); border-radius:6px; padding:3px 4px 2px; }
+  .pyr svg { display:block; }
+  .panel { transition:opacity .4s; }
+  .panel { max-height:calc(100% - 110px); overflow-y:auto; }
+  .panel.dim { opacity:0; pointer-events:none; }
+  #tour { position:absolute; left:16px; bottom:16px; display:flex; gap:6px; align-items:center;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 10px; backdrop-filter:blur(6px); }
+  #tour button { width:38px; height:34px; border-radius:8px; border:1px solid var(--line); background:#1d232c; color:var(--fg);
+    font-size:15px; cursor:pointer; }
+  #tour button#tPlay { width:52px; background:var(--accent); color:#1a1408; border-color:var(--accent); font-weight:700; }
+  #tour button:hover { filter:brightness(1.15); }
+  #tPos { font-size:12px; color:var(--muted); min-width:64px; margin-left:4px; white-space:nowrap; }
+  #caption { position:absolute; left:310px; right:16px; bottom:16px; max-width:680px;
+    background:rgba(14,17,22,.88); border:1px solid var(--line); border-radius:12px; padding:12px 16px; backdrop-filter:blur(6px); }
+  .cap-head { display:flex; gap:8px; align-items:baseline; margin-bottom:6px; }
+  #capPart { font-size:11px; color:#1a1408; background:var(--accent); border-radius:4px; padding:1px 6px; }
+  #capTitle { font-size:15px; font-weight:600; }
+  #capText { font-size:13.5px; line-height:1.75; color:#c9ced6; }
+  #capText .now { color:#fff; background:rgba(255,179,71,.18); border-radius:3px; }
+  @media (max-width:900px) { #caption { left:16px; right:16px; bottom:72px; } }
+  #chart { position:absolute; top:16px; right:16px; width:360px; max-width:calc(100% - 32px); box-sizing:border-box;
+    background:rgba(14,17,22,.9); border:1px solid var(--line); border-radius:12px; padding:12px 14px 10px; backdrop-filter:blur(6px); }
+  #chart h2 { font-size:13.5px; margin:0 0 2px; font-weight:600; }
+  #chart .csub { font-size:11px; color:var(--muted); margin-bottom:8px; }
+  #chart svg { display:block; width:100%; height:auto; overflow:visible; }
+  #chart svg text { font-family:inherit; }
+  #chart .lg { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:10.5px; color:var(--muted); margin-top:6px; }
+  #chart .lg i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:3px; vertical-align:-1px; }
+  #chart .cnote { font-size:10.5px; color:var(--muted); margin-top:6px; line-height:1.5; }
+  @media (max-width:900px) { #chart { top:auto; bottom:190px; width:auto; left:16px; } }
+  .note { font-size:11px; color:var(--muted); margin-top:10px; line-height:1.5; }
+  @media (max-width:600px) { .panel { top:auto; bottom:16px; } }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="charts"></div>
+<div id="chart" hidden></div>
+<div id="caption" hidden><div class="cap-head"><span id="capPart"></span><span id="capTitle"></span></div><div id="capText"></div></div>
+<div id="tour" hidden>
+  <button id="tPrev" title="前へ">⏮</button><button id="tPlay" title="再生">▶</button><button id="tNext" title="次へ">⏭</button><button id="tStop" title="終了">■</button>
+  <span id="tPos"></span>
+</div>
+<div class="panel">
+  <h1 id="title">地形</h1>
+  <div class="sub" id="sub"></div>
+  <div class="row"><div class="label"><span>高さの強調</span><span id="exVal"></span></div>
+    <input type="range" id="ex" min="1" max="5" step="0.5" value="1.5"></div>
+  <div class="row"><div class="label"><span>見る角度（傾き）</span><span id="pitchVal"></span></div>
+    <input type="range" id="pitch" min="0" max="85" step="1"></div>
+  <div class="row"><div class="label"><span>方角</span><span id="bearingVal"></span></div>
+    <input type="range" id="bearing" min="-180" max="180" step="1"></div>
+  <div class="row"><div class="label"><span>ズーム</span><span id="zoomVal"></span></div>
+    <input type="range" id="zoom" min="8" max="15" step="0.05"></div>
+  <label class="cb"><input type="checkbox" id="popColor" checked>字を人口で塗る</label>
+  <div class="row" style="margin-top:4px"><div class="label"><span>国勢調査の年</span><span id="yearVal"></span></div>
+    <input type="range" id="year" min="2000" max="2020" step="5" value="2020"></div>
+  <div class="legend" id="legend"></div>
+  <label class="cb"><input type="checkbox" id="pyr" checked>男女・年齢別のグラフ<span class="key"><i style="background:#5aa0f0"></i>男 <i style="background:#f08ca0"></i>女</span></label>
+  <div class="row" style="margin-top:6px"><div class="label"><span>グラフ</span></div>
+    <select id="chartSel" style="width:100%;background:#1d232c;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px">
+      <option value="">表示しない</option><option value="longrun">人口の推移（1920〜2020年）</option>
+      <option value="industry">産業別の就業者（市全体）</option><option value="industryAza">産業別の就業者（字ごと）</option></select></div>
+  <label class="cb"><input type="checkbox" id="roads" checked>道路<span class="key"><i style="background:#f07828"></i>高速 <i style="background:#e0463c"></i>国道 <i style="background:#f5c84a"></i>道道 <i style="background:#c8c8c8"></i>市町村道</span></label>
+  <label class="cb"><input type="checkbox" id="rail" checked>鉄道<span class="key"><i class="rail"></i>JR</span></label>
+  <label class="cb"><input type="checkbox" id="water" checked>川・湖<span class="key"><i style="background:#3c8ce6"></i></span></label>
+  <label class="cb"><input type="checkbox" id="lblMuni" checked>市町村名</label>
+  <label class="cb"><input type="checkbox" id="lblSmall" checked>字名</label>
+  <div class="note">標高：<span id="src"></span>。<br>
+    境界：市町村 N03（2020）、字 国勢調査小地域（2020）。人口：国勢調査（2000〜2020年）。<br>
+    道路 N13（2024、点線＝トンネル）、鉄道 N02（2025）、河川 W05・湖沼 W09（国土数値情報）。<br>ドラッグで移動。角度・方角・ズームはスライダーでも変えられます。</div>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const code = params.get('code') || '01227';
+const C = deck.COORDINATE_SYSTEM.METER_OFFSETS;
+const state = { opOut: 0.2, opIn: 0.8, ex: 1.5, popColor: true, year: 2020, pyr: true, chart: '', lblMuni: true, lblSmall: true, roads: true, rail: true, water: true };
+let D, origin, mesh, kx, ky;
+
+const toXY = (lon, lat) => [(lon - origin[0]) * kx, (lat - origin[1]) * ky];
+
+function zAt(lon, lat) {  // bilinear on the terrain grid, ignoring empty nodes
+  const g = D.grid, fx = (lon - g.lon0) / g.dlon, fy = (lat - g.lat0) / g.dlat;
+  const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+  let s = 0, w = 0;
+  for (const [dx, dy, ww] of [[0,0,(1-tx)*(1-ty)],[1,0,tx*(1-ty)],[0,1,(1-tx)*ty],[1,1,tx*ty]]) {
+    const x = x0 + dx, y = y0 + dy;
+    if (x < 0 || y < 0 || x >= g.nx || y >= g.ny) continue;
+    const v = g.z[y * g.nx + x];
+    if (!Number.isNaN(v)) { s += v * (ww + 1e-6); w += ww + 1e-6; }
+  }
+  return w ? s / w : 0;
+}
+
+let indices = null, idxIn = null, idxAza = null;
+// 2020 population classes for the small areas (sequential greens; 0 people keeps the bare terrain colour)
+const POP = [[0, [196, 190, 178], '0人'], [1, [204, 234, 196], '1〜'], [200, [128, 200, 128], '200〜'],
+  [400, [46, 150, 82], '400〜'], [800, [10, 92, 52], '800人〜']];
+const popOf = s => s && (s.pops ? s.pops[state.year] : s.pop);
+const popColor = p => p == null ? [196, 190, 178] : [...POP].reverse().find(([lo]) => p >= lo)[1];
+function buildMesh(ex) {
+  const g = D.grid, n = g.nx * g.ny, Zs = g.z, W = g.nx;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), tex = new Float32Array(n * 2);
+  const dxm = g.dlon * kx, dym = g.dlat * ky, ox = (g.lon0 - origin[0]) * kx, oy = (g.lat0 - origin[1]) * ky;
+  const Z = (k, z) => { const v = Zs[k]; return Number.isNaN(v) ? z : v * ex; };
+  for (let y = 0; y < g.ny; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, z = Z(i, 0);
+    pos[i * 3] = ox + x * dxm; pos[i * 3 + 1] = oy + y * dym; pos[i * 3 + 2] = z;
+    const zl = Z(x > 0 ? i - 1 : i, z), zr = Z(x < W - 1 ? i + 1 : i, z);
+    const zd = Z(y > 0 ? i - W : i, z), zu = Z(y < g.ny - 1 ? i + W : i, z);
+    const nx = -(zr - zl) / (2 * dxm), ny = -(zu - zd) / (2 * dym), l = Math.hypot(nx, ny, 1);
+    nor[i * 3] = nx / l; nor[i * 3 + 1] = ny / l; nor[i * 3 + 2] = 1 / l;
+  }
+  if (!indices) {  // same topology for every exaggeration
+    // split the cells: target municipality (mask) vs. the neighbours
+    const N = (g.nx - 1) * (g.ny - 1) * 6, out = new Uint32Array(N), inn = new Uint32Array(N); let m = 0, q = 0;
+    const ok = k => !Number.isNaN(Zs[k]), M = g.mask;
+    for (let y = 0; y < g.ny - 1; y++) for (let x = 0; x < W - 1; x++) {
+      const a = y * W + x, b = a + 1, c = a + W, d = c + 1;
+      if (!(ok(a) && ok(b) && ok(c) && ok(d))) continue;
+      const arr = M && M[a] + M[b] + M[c] + M[d] >= 2 ? inn : out, k = arr === inn ? q : m;
+      arr[k] = a; arr[k + 1] = b; arr[k + 2] = d; arr[k + 3] = a; arr[k + 4] = d; arr[k + 5] = c;
+      if (arr === inn) q += 6; else m += 6;
+    }
+    indices = out.slice(0, m); idxIn = inn.slice(0, q);
+    const A = g.aza;  // split the target cells once more, by small area (most common non-zero corner)
+    if (A) {
+      const buf = D.small.map(() => []);
+      for (let t = 0; t < idxIn.length; t += 6) {
+        const cnt = {}; let best = 0, bn = 0;
+        for (const v of [idxIn[t], idxIn[t + 1], idxIn[t + 2], idxIn[t + 5]]) {
+          const a = A[v]; if (!a) continue; cnt[a] = (cnt[a] || 0) + 1; if (cnt[a] > bn) { bn = cnt[a]; best = a; }
+        }
+        if (best) for (let j = 0; j < 6; j++) buf[best - 1].push(idxIn[t + j]);
+        else (buf.none ||= []).push(...idxIn.subarray(t, t + 6));
+      }
+      idxAza = D.small.map((s, i) => ({ s, idx: Uint32Array.from(buf[i]) }));
+      if (buf.none) idxAza.push({ s: null, idx: Uint32Array.from(buf.none) });
+    }
+  }
+  const attributes = { positions: { value: pos, size: 3 }, normals: { value: nor, size: 3 }, texCoords: { value: tex, size: 2 } };
+  return { out: { attributes, indices: { value: indices, size: 1 } }, in: { attributes, indices: { value: idxIn, size: 1 } },
+    aza: idxAza && idxAza.map(({ s, idx }) => ({ s, mesh: { attributes, indices: { value: idx, size: 1 } } })) };
+}
+
+const drape = (rings, lift) => rings.map(r => r.map(([lon, lat]) => [...toXY(lon, lat), zAt(lon, lat) * state.ex + lift]));
+
+const ROAD = { 4: [[240, 120, 40], 3.5], 1: [[224, 70, 60], 2.8], 2: [[245, 200, 74], 2], 3: [[200, 200, 200, 210], 1], 7: [[170, 170, 170, 130], 0.6] };
+const ORDER = { 7: 0, 3: 1, 2: 2, 1: 3, 4: 4 };
+const RIVER_W = { 1: 2.6, 2: 2, 3: 1.5, 4: 0.9, 0: 0.9 };
+const dash = new deck.PathStyleExtension({ dash: true });
+const lift = (p, h) => p.map(([lon, lat]) => [...toXY(lon, lat), zAt(lon, lat) * state.ex + h]);
+let draped = {};
+function drapeAll() {  // terrain-following 3D paths, rebuilt only when the exaggeration changes
+  draped = {
+    roads: [...D.roads].sort((a, b) => ORDER[a.c] - ORDER[b.c]).map(d => ({ ...d, q: lift(d.p, d.c >= 3 ? 4 : 6) })),
+    rail: D.rail.map(d => ({ ...d, q: lift(d.p, 7) })),
+    rivers: D.rivers.map(d => ({ ...d, q: lift(d.p, 3) })),
+    lakes: D.lakes.flatMap(l => l.rings.map(r => {
+      const z = Math.min(...r.map(([lon, lat]) => zAt(lon, lat))) * state.ex + 2;
+      return { n: l.n, q: r.map(([lon, lat]) => [...toXY(lon, lat), z]) };
+    })),
+  };
+}
+
+function overlayLayers() {
+  const o = { coordinateSystem: C, coordinateOrigin: [...origin, 0], widthUnits: 'pixels', capRounded: true, jointRounded: true,
+    getPath: d => d.q, updateTriggers: { getPath: state.ex } };
+  const out = [];
+  if (state.water) out.push(
+    new deck.SolidPolygonLayer({ id: 'lakes', data: draped.lakes, _full3d: true, coordinateSystem: C, coordinateOrigin: [...origin, 0],
+      getPolygon: d => d.q, getFillColor: [60, 140, 230, 200], updateTriggers: { getPolygon: state.ex } }),
+    new deck.PathLayer({ id: 'rivers', data: draped.rivers, ...o, getColor: [60, 140, 230], getWidth: d => RIVER_W[d.s] ?? 1 }));
+  if (state.roads) out.push(new deck.PathLayer({ id: 'roads', data: draped.roads, ...o,
+    getColor: d => ROAD[d.c][0], getWidth: d => ROAD[d.c][1],
+    extensions: [dash], getDashArray: d => d.t ? [2, 2] : [0, 0], dashJustified: true }));
+  if (state.rail) out.push(
+    new deck.PathLayer({ id: 'rail-base', data: draped.rail, ...o, getColor: [245, 245, 245], getWidth: 4.5 }),
+    new deck.PathLayer({ id: 'rail-dash', data: draped.rail, ...o, getColor: [25, 25, 25], getWidth: 2.4,
+      extensions: [dash], getDashArray: [3, 3] }));
+  return out;
+}
+
+function layers() {
+  const meshProps = { getPosition: [0, 0, 0], coordinateSystem: C, coordinateOrigin: [...origin, 0], getColor: [196, 190, 178],
+    material: { ambient: 0.35, diffuse: 0.75, shininess: 8, specularColor: [30, 30, 30] }, updateTriggers: { mesh: state.ex } };
+  const munis = D.munis.flatMap(m => m.rings.map(r => ({ m, r })));
+  const small = D.small.flatMap(s => s.rings.map(r => ({ s, r })));
+  const out = [
+    // neighbours: 80 % transparent and no depth writes, so every line and label shows through
+    new deck.SimpleMeshLayer({ id: 'terrain-out', data: [0], mesh: mesh.out, ...meshProps, opacity: state.opOut,
+      parameters: { depthWriteEnabled: false } }),
+    // target: 20 % transparent, keeps depth so its own ridges still hide what is behind them
+    ...(state.popColor && mesh.aza
+      ? mesh.aza.map(({ s, mesh: m }, i) => new deck.SimpleMeshLayer({ id: `terrain-aza-${i}`, data: [0], mesh: m, ...meshProps,
+          getColor: popColor(popOf(s)), opacity: state.opIn }))
+      : [new deck.SimpleMeshLayer({ id: 'terrain-in', data: [0], mesh: mesh.in, ...meshProps, opacity: state.opIn })]),
+    ...overlayLayers(),
+    new deck.PathLayer({ id: 'small', data: small, coordinateSystem: C, coordinateOrigin: [...origin, 0],
+      getPath: d => drape([d.r], 8)[0], getColor: [200, 110, 255, 235], getWidth: 1.4, widthUnits: 'pixels',
+      updateTriggers: { getPath: state.ex } }),
+    ...(state.focus ? [new deck.PathLayer({ id: 'focus', data: D.small.filter(s => state.focus.includes(s.name)).flatMap(s => s.rings),
+      coordinateSystem: C, coordinateOrigin: [...origin, 0], getPath: r => drape([r], 10)[0], getColor: [255, 225, 110],
+      getWidth: 4.5, widthUnits: 'pixels', capRounded: true, jointRounded: true, updateTriggers: { getPath: state.ex } })] : []),
+    new deck.PathLayer({ id: 'muni', data: munis, coordinateSystem: C, coordinateOrigin: [...origin, 0],
+      getPath: d => drape([d.r], 12)[0], getColor: d => d.m.target ? [255, 255, 255] : [150, 158, 172],
+      getWidth: d => d.m.target ? 3 : 2.2, widthUnits: 'pixels', updateTriggers: { getPath: state.ex } }),
+  ];
+  const text = (id, data, size, color) => new deck.TextLayer({ id, data, coordinateSystem: C, coordinateOrigin: [...origin, 0],
+    getPosition: d => [...toXY(...d.label), zAt(...d.label) * state.ex + 120], getText: d => d.name.replace(/^字/, '') + (state.popColor && popOf(d) != null ? `\n${popOf(d).toLocaleString()}人` : ''),
+    getSize: size, getColor: color, characterSet: 'auto', fontFamily: 'Hiragino Sans, Noto Sans JP, sans-serif',
+    fontWeight: 600, outlineWidth: 3, outlineColor: [14, 17, 22, 220], fontSettings: { sdf: true }, parameters: { depthCompare: 'always' },
+    updateTriggers: { getPosition: state.ex, getText: [state.popColor, state.year] } });
+  if (state.lblMuni) out.push(text('lbl-muni', D.munis, d => d.target ? 18 : 15, [255, 255, 255]));
+  if (state.lblSmall) out.push(text('lbl-small', D.small, 12, [220, 175, 255]));
+  return out;
+}
+
+const lighting = new deck.LightingEffect({
+  ambient: new deck.AmbientLight({ color: [255, 255, 255], intensity: 0.8 }),
+  sun: new deck.DirectionalLight({ color: [255, 248, 235], intensity: 1.8, direction: [1, 1.2, -0.8] }),
+});
+let view = { longitude: 142, latitude: 43.4, zoom: 9.6, pitch: 55, bearing: -20, maxPitch: 85, minZoom: 8, maxZoom: 15 };
+const DIRS = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+function syncView() {  // panel sliders follow the view, whatever moved it
+  for (const k of ['pitch', 'bearing', 'zoom']) document.getElementById(k).value = view[k];
+  document.getElementById('pitchVal').textContent = `${Math.round(view.pitch)}°`;
+  const b = ((view.bearing % 360) + 360) % 360;
+  document.getElementById('bearingVal').textContent = `${DIRS[Math.round(b / 45) % 8]}を上に（${Math.round(view.bearing)}°）`;
+  document.getElementById('zoomVal').textContent = view.zoom.toFixed(1);
+}
+const setView = v => { view = { ...view, ...v }; map.setProps({ viewState: view }); syncView(); };
+// small sex/age pyramids under each label: HTML over the canvas, re-placed after every frame
+// 15 five-year bands plus 75+, drawn 4 rows tall (75-94) at a quarter width so its area stays honest
+const AGE_N = 16, ROWS = 19, BAR_H = 3, HALF = 40;
+const bandRows = i => i < 15 ? [i, 1] : [15, 4];
+let pyrMax = 0.1, pyrEls = [];
+function pyramidSVG(a, tot) {
+  const H = ROWS * BAR_H, W = HALF * 2 + 4, k = HALF / pyrMax;
+  let b = '';
+  for (let i = 0; i < AGE_N; i++) {
+    const [r0, n] = bandRows(i), y = H - (r0 + n) * BAR_H, h = n * BAR_H - 0.6;
+    const m = (a.m[i] || 0) / n / tot * k, f = (a.f[i] || 0) / n / tot * k;
+    b += `<rect x="${HALF - m}" y="${y}" width="${m}" height="${h}" fill="#5aa0f0"/>`;
+    b += `<rect x="${HALF + 4}" y="${y}" width="${f}" height="${h}" fill="#f08ca0"/>`;
+  }
+  const y65 = H - 13 * BAR_H;  // 65歳の線
+  b += `<line x1="0" x2="${W}" y1="${y65}" y2="${y65}" stroke="#fff" stroke-opacity=".45" stroke-dasharray="2 2"/>`;
+  const t = (x, y, s, anchor) => `<text x="${x}" y="${y}" font-size="8" fill="#9aa3b0" text-anchor="${anchor}">${s}</text>`;
+  return `<svg width="${W}" height="${H + 9}">${b}${t(0, y65 - 1.5, '65+', 'start')}${t(0, H + 8, '男', 'start')}${t(W, H + 8, '女', 'end')}</svg>`;
+}
+function buildPyramids() {
+  const box = document.getElementById('charts'); box.innerHTML = ''; pyrEls = [];
+  if (!D || !state.pyr || !state.popColor) return;
+  for (const s of D.small) {
+    const a = s.ages && s.ages[state.year], tot = popOf(s);
+    if (!a || !tot) continue;
+    const el = document.createElement('div'); el.className = 'pyr'; el.innerHTML = pyramidSVG(a, tot);
+    box.appendChild(el); pyrEls.push({ el, s });
+  }
+  placePyramids();
+}
+function placePyramids() {
+  const vp = map.getViewports()[0]; if (!vp) return;
+  for (const { el, s } of pyrEls) {
+    const [x, y] = vp.project([s.label[0], s.label[1], zAt(...s.label) * state.ex + 120]);
+    el.style.left = `${x}px`; el.style.top = `${y + 20}px`;
+  }
+}
+const map = new deck.DeckGL({ container: 'map', controller: true, effects: [lighting], layers: [], viewState: view,
+  onAfterRender: () => placePyramids(),
+  onViewStateChange: ({ viewState }) => setView(viewState) });
+for (const k of ['pitch', 'bearing', 'zoom']) document.getElementById(k).oninput = e => setView({ [k]: +e.target.value });
+syncView();
+const redraw = () => map.setProps({ layers: layers() });
+
+fetch(`terrain_${code}.json`).then(r => r.json()).then(async d => {
+  D = d; origin = d.origin;
+  const g = d.grid;
+  if (g.bin) {  // Uint16 decimeters, 65535 = no data
+    const u = new Uint16Array(await (await fetch(g.bin)).arrayBuffer());
+    g.z = Float32Array.from(u, v => v === 65535 ? NaN : v / 10);
+  } else g.z = Float32Array.from(g.z, v => v == null ? NaN : v);
+  g.aza = g.aza_bin ? new Uint8Array(await (await fetch(g.aza_bin)).arrayBuffer()) : null;
+  g.mask = g.mask_bin ? new Uint8Array(await (await fetch(g.mask_bin)).arrayBuffer()) : g.mask && Uint8Array.from(g.mask);
+  document.getElementById('src').textContent = g.source || '';
+  kx = 111320 * Math.cos(origin[1] * Math.PI / 180); ky = 110574;
+  document.title = `${d.name}の地形`;
+  document.getElementById('title').textContent = `${d.name}と周辺の地形`;
+  document.getElementById('sub').textContent = d.munis.filter(m => !m.target).map(m => m.name).join('・');
+  const t = d.munis.find(m => m.target);
+  setView({ longitude: t.label[0], latitude: t.label[1], zoom: 11.2, pitch: 60, bearing: -30 });
+  // one x-scale for every pyramid and year: the largest single band as a share of its small area
+  pyrMax = Math.max(0.05, ...d.small.flatMap(s => Object.entries(s.ages || {}).flatMap(([y, a]) => {
+    const t = s.pops[y]; return t ? [...a.m, ...a.f].map((v, i) => (v || 0) / bandRows(i % AGE_N)[1] / t) : [];
+  })));
+  mesh = buildMesh(state.ex); drapeAll(); redraw(); showYear(); buildPyramids();
+  loadTour();
+});
+const ex = document.getElementById('ex'), exVal = document.getElementById('exVal');
+const showEx = () => exVal.textContent = `×${state.ex}`; showEx();
+ex.oninput = () => { state.ex = +ex.value; showEx(); mesh = buildMesh(state.ex); drapeAll(); redraw(); };
+document.getElementById('legend').innerHTML = POP.map(([, c, t]) => `<span><i style="background:rgb(${c})"></i>${t}</span>`).join('');
+const yearEl = document.getElementById('year');
+function showYear() {
+  const tot = D ? D.small.reduce((a, s) => a + (popOf(s) || 0), 0) : null;
+  document.getElementById('yearVal').textContent = `${state.year}年` + (tot != null ? `（市全体 ${tot.toLocaleString()}人）` : '');
+}
+yearEl.oninput = () => { state.year = +yearEl.value; showYear(); if (D) { redraw(); buildPyramids(); drawChart(); } };
+for (const k of ['popColor', 'pyr', 'lblMuni', 'lblSmall', 'roads', 'rail', 'water'])
+  document.getElementById(k).onchange = e => { state[k] = e.target.checked; redraw(); buildPyramids(); };
+
+// ---- charts: long-run population and employed persons by industry (city / small areas) ----
+const IND = [['prim', '農林漁業・鉱業', '#a57c52'], ['cons', '建設', '#e8913a'], ['manu', '製造', '#8a8fa3'],
+  ['trade', '卸売・小売・飲食', '#e6c24a'], ['trans', '運輸・通信', '#4fb3bf'], ['med', '医療・福祉', '#e0607e'],
+  ['svc', 'その他のサービス', '#9b7fd1'], ['gov', '公務', '#4f8fe6']];
+const YEARS = [2000, 2005, 2010, 2015, 2020];
+const fmt = n => n == null ? '—' : n.toLocaleString();
+const legend = () => `<div class="lg">${IND.map(([, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
+function stackBar(ind, x0, y, w, h, scaleTotal) {  // one horizontal stacked bar; widths share of scaleTotal
+  let x = x0, out = '';
+  for (const [k, l, c] of IND) {
+    const v = ind[k]; if (!v) continue;
+    const ww = v / scaleTotal * w;
+    out += `<rect x="${x}" y="${y}" width="${Math.max(0, ww - 0.5)}" height="${h}" fill="${c}"><title>${l} ${v}人</title></rect>`;
+    x += ww;
+  }
+  return out;
+}
+function chartLongrun() {
+  const L = D.city.longrun; if (!L.length) return '';
+  const W = 330, H = 170, l = 40, r = 8, t = 10, b = 22, x0 = 1920, x1 = 2020, ymax = 50000;
+  const X = y => l + (y - x0) / (x1 - x0) * (W - l - r), Y = v => t + (1 - v / ymax) * (H - t - b);
+  let g = '';
+  for (const v of [0, 10000, 20000, 30000, 40000, 50000])
+    g += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#2b323d"/><text x="${l - 5}" y="${Y(v) + 3.5}" font-size="9.5" fill="#9aa3b0" text-anchor="end">${v ? v / 10000 + '万' : 0}</text>`;
+  for (let y = 1920; y <= 2020; y += 20) g += `<text x="${X(y)}" y="${H - 6}" font-size="9.5" fill="#9aa3b0" text-anchor="middle">${y}</text>`;
+  for (const [y, lab] of [[1971, '閉山'], [1988, '閉山・廃線'], [1995, '最後の閉山']])
+    g += `<line x1="${X(y)}" x2="${X(y)}" y1="${t}" y2="${H - b}" stroke="#ffb347" stroke-dasharray="3 3" stroke-opacity=".7"/>
+      <text x="${X(y) + 3}" y="${Y(y === 1971 ? 31000 : y === 1988 ? 25500 : 20000)}" font-size="9.5" fill="#ffb347">${y} ${lab}</text>`;
+  const pts = L.map(([y, v]) => `${X(y)},${Y(v)}`).join(' ');
+  g += `<polygon points="${X(L[0][0])},${Y(0)} ${pts} ${X(L.at(-1)[0])},${Y(0)}" fill="#5aa0f0" fill-opacity=".18"/>`;
+  g += `<polyline points="${pts}" fill="none" stroke="#5aa0f0" stroke-width="2"/>`;
+  g += L.map(([y, v]) => `<circle cx="${X(y)}" cy="${Y(v)}" r="${y === state.year ? 4 : 2}" fill="${y === state.year ? '#fff' : '#5aa0f0'}"><title>${y}年 ${v.toLocaleString()}人</title></circle>`).join('');
+  g += `<circle cx="${X(1948)}" cy="${Y(46171)}" r="3.5" fill="none" stroke="#fff"/><text x="${X(1948) + 6}" y="${Y(46171) + 3}" font-size="9.5" fill="#fff">1948 約4.6万人（ピーク）</text>`;
+  const last = L.at(-1);
+  g += `<text x="${X(last[0]) - 2}" y="${Y(last[1]) - 7}" font-size="10" fill="#fff" text-anchor="end">${last[0]} ${last[1].toLocaleString()}人</text>`;
+  return `<h2>人口の推移</h2><div class="csub">国勢調査（1948年は常住人口調査）</div><svg viewBox="0 0 ${W} ${H}">${g}</svg>
+    <div class="cnote">1920〜30年代は当時の村域で、今の市域と同じではありません。</div>`;
+}
+function chartIndustry() {
+  const C = D.city, W = 330, rowH = 26, l = 40, r = 66, H = YEARS.length * rowH + 4;
+  const max = Math.max(...YEARS.map(y => C.ind[y]?.employed || 0));
+  let g = '';
+  YEARS.forEach((y, i) => {
+    const d = C.ind[y]; if (!d) return;
+    const yy = i * rowH + 2, on = y === state.year;
+    g += `<text x="${l - 6}" y="${yy + 13}" font-size="10.5" fill="${on ? '#fff' : '#9aa3b0'}" text-anchor="end" font-weight="${on ? 700 : 400}">${y}</text>`;
+    g += stackBar(d, l, yy + 2, W - l - r, 16, max);
+    if (on) g += `<rect x="${l - 2}" y="${yy}" width="${(W - l - r) * d.employed / max + 4}" height="20" fill="none" stroke="#fff" stroke-opacity=".8" rx="2"/>`;
+    const rate = C.pop15[y] ? Math.round(d.employed / C.pop15[y] * 100) : null;
+    g += `<text x="${l + (W - l - r) * d.employed / max + 5}" y="${yy + 14}" font-size="10" fill="#c9ced6">${fmt(d.employed)}人${rate != null ? `・${rate}%` : ''}</text>`;
+  });
+  return `<h2>産業別の就業者（市に住んで働く人）</h2><div class="csub">国勢調査。人数の後ろは15歳以上に占める割合</div>
+    <svg viewBox="0 0 ${W} ${H}">${g}</svg>${legend()}
+    <div class="cnote">2000年は医療・福祉が「その他のサービス」に含まれています。勤め先が市外の人も含みます。</div>`;
+}
+function chartIndustryAza() {
+  const y = state.year, rows = D.small.filter(s => s.ind?.[y]?.employed), W = 330, rowH = 24, l = 40, r = 74, H = rows.length * rowH + 4;
+  let g = '';
+  rows.sort((a, b) => b.ind[y].employed - a.ind[y].employed).forEach((s, i) => {
+    const d = s.ind[y], yy = i * rowH + 2, rate = s.pop15?.[y] ? Math.round(d.employed / s.pop15[y] * 100) : null;
+    const on = state.focus && state.focus.includes(s.name);
+    g += `<text x="${l - 6}" y="${yy + 13}" font-size="10.5" fill="${on ? '#ffe16e' : '#c9ced6'}" text-anchor="end">${s.name.replace(/^字/, '')}</text>`;
+    g += stackBar(d, l, yy + 3, W - l - r, 14, d.employed);  // 100 % bars: composition per small area
+    g += `<text x="${W - r + 5}" y="${yy + 14}" font-size="10" fill="#c9ced6">${d.employed}人・${rate ?? '—'}%</text>`;
+  });
+  return `<h2>字ごとの仕事（${y}年）</h2><div class="csub">就業者の産業の内訳。人数の後ろは15歳以上に占める割合</div>
+    <svg viewBox="0 0 ${W} ${H}">${g}</svg>${legend()}${y === 2000 ? '<div class="cnote">2000年は医療・福祉が「その他のサービス」に含まれています。</div>' : ''}`;
+}
+function drawChart() {
+  const el = document.getElementById('chart'), k = state.chart;
+  const html = !D || !D.city ? '' : k === 'longrun' ? chartLongrun() : k === 'industry' ? chartIndustry() : k === 'industryAza' ? chartIndustryAza() : '';
+  el.hidden = !html; el.innerHTML = html;
+  document.getElementById('chartSel').value = k || '';
+}
+document.getElementById('chartSel').onchange = e => { state.chart = e.target.value; drawChart(); };
+
+// ---- guided tour: tour_<code>.json steps, read aloud with the browser's speech synthesis ----
+const tourEl = document.getElementById('tour'), capEl = document.getElementById('caption'), panelEl = document.querySelector('.panel');
+let TOUR = null, step = -1, playing = false, run = 0, yearTimer = null, camAnim = null;
+async function loadTour() {
+  try { TOUR = await (await fetch(`tour_${code}.json`)).json(); } catch { return; }
+  tourEl.hidden = false; showPos();
+}
+function showPos() {
+  document.getElementById('tPos').textContent = step < 0 ? `${TOUR.steps.length}場面` : `${step + 1} / ${TOUR.steps.length}`;
+  document.getElementById('tPlay').textContent = playing ? '⏸' : '▶';
+}
+function applyState(o) {  // tour settings -> state, checkboxes and the year slider
+  for (const [k, v] of Object.entries(o)) {
+    state[k] = v;
+    const el = document.getElementById(k);
+    if (el && el.type === 'checkbox') el.checked = v; else if (el && k !== 'chart') el.value = v;
+  }
+  showYear(); redraw(); buildPyramids(); drawChart();
+}
+function viewFor(v, focus) {
+  let at = v.at;
+  if (at === 'target' || !at) at = D.munis.find(m => m.target).label;
+  else if (at === 'focus') {
+    const L = D.small.filter(s => focus.includes(s.name)).map(s => s.label);
+    at = [L.reduce((a, l) => a + l[0], 0) / L.length, L.reduce((a, l) => a + l[1], 0) / L.length];
+  }
+  const sh = v.shift || [0, 0];
+  return { longitude: at[0] + sh[0], latitude: at[1] + sh[1], zoom: v.zoom, pitch: v.pitch, bearing: v.bearing };
+}
+function flyTo(target, ms = 2200) {  // own easing so the controlled viewState stays simple
+  cancelAnimationFrame(camAnim);
+  const from = { ...view }, t0 = performance.now();
+  let db = ((target.bearing - from.bearing) % 360 + 540) % 360 - 180;
+  const tick = now => {
+    const t = Math.min(1, (now - t0) / ms), e = t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+    const L = k => from[k] + (target[k] - from[k]) * e;
+    setView({ longitude: L('longitude'), latitude: L('latitude'), zoom: L('zoom'), pitch: L('pitch'), bearing: from.bearing + db * e });
+    if (t < 1) camAnim = requestAnimationFrame(tick);
+  };
+  camAnim = requestAnimationFrame(tick);
+}
+const sentences = t => t.match(/[^。]+。?/g) || [t];
+let jaVoice = null;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith('ja'));
+  jaVoice = vs.find(v => /Kyoko|O-ren|Google/.test(v.name)) || vs[0] || null;
+}
+if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+// readings for the voice only (captions keep the kanji): longest key first, e.g. 字 -> あざ
+const reading = t => Object.entries(TOUR.readings || {}).sort((a, b) => b[0].length - a[0].length)
+  .reduce((a, [k, v]) => a.split(k).join(v), t);
+let audioEl = null;
+function speak(text, id, done, audio) {  // prepared audio file if the step has one, else browser speech per sentence
+  const parts = sentences(text);
+  document.getElementById('capText').innerHTML = parts.map((p, i) => `<span data-i="${i}">${p}</span>`).join('');
+  const mark = i => document.querySelectorAll('#capText span').forEach(s => s.classList.toggle('now', +s.dataset.i === i));
+  if (audio) {  // highlight follows playback time, split by sentence length
+    const cum = parts.reduce((a, p) => [...a, (a.at(-1) || 0) + p.length], []), tot = cum.at(-1);
+    audioEl = new Audio(audio);
+    audioEl.ontimeupdate = () => { const f = audioEl.currentTime / (audioEl.duration || 1) * tot; mark(cum.findIndex(c => f < c)); };
+    audioEl.onended = () => { if (id === run) { mark(-1); done(); } };
+    audioEl.onerror = () => { audioEl = null; if (id === run) speak(text, id, done); };
+    audioEl.play().catch(() => audioEl && audioEl.onerror());
+    return;
+  }
+  const say = i => {
+    if (id !== run) return;
+    if (i >= parts.length) { mark(-1); return done(); }
+    mark(i);
+    if (!('speechSynthesis' in window)) return setTimeout(() => say(i + 1), 400 + parts[i].length * 140);
+    const u = new SpeechSynthesisUtterance(reading(parts[i]));
+    u.lang = 'ja-JP'; if (jaVoice) u.voice = jaVoice; u.rate = 1.05;
+    u.onend = () => say(i + 1); u.onerror = () => setTimeout(() => say(i + 1), 300);
+    speechSynthesis.speak(u);
+  };
+  say(0);
+}
+function show(i) {
+  const st = TOUR.steps[i]; step = i; const id = ++run;
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  if (audioEl) { audioEl.pause(); audioEl = null; }
+  clearInterval(yearTimer);
+  state.focus = st.focus || null;
+  // settings accumulate along the script, so jumping to any step gives the same picture as playing to it
+  applyState(Object.assign({}, ...TOUR.steps.slice(0, i + 1).map(s => s.set || {})));
+  panelEl.classList.add('dim');
+  if (st.view) flyTo(viewFor(st.view, st.focus || []));
+  capEl.hidden = false;
+  document.getElementById('capPart').textContent = st.part || '';
+  document.getElementById('capTitle').textContent = st.title || '';
+  document.getElementById('capText').textContent = st.text;
+  if (st.yearAnim && playing) {  // step the census year while the narration runs
+    const [y0, y1] = st.yearAnim; let y = y0; applyState({ year: y });
+    yearTimer = setInterval(() => { y += 5; if (y > y1) return clearInterval(yearTimer); applyState({ year: y }); }, 2600);
+  }
+  showPos();
+  if (!playing) return;
+  setTimeout(() => speak(st.text, id, () => {  // let the camera settle, then read; move on when done
+    if (id !== run || !playing) return;
+    if (i + 1 < TOUR.steps.length) setTimeout(() => id === run && playing && show(i + 1), 900);
+    else stopTour(false);
+  }, st.audio), 1200);
+}
+function playTour() { playing = true; show(step < 0 ? 0 : step); }
+function pauseTour() {
+  playing = false; run++; clearInterval(yearTimer);
+  if (audioEl) { audioEl.pause(); audioEl = null; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  document.querySelectorAll('#capText span').forEach(s => s.classList.remove('now')); showPos();
+}
+function stopTour(reset = true) {
+  pauseTour(); panelEl.classList.remove('dim'); state.focus = null; redraw(); drawChart();
+  if (reset) { step = -1; capEl.hidden = true; }
+  showPos();
+}
+document.getElementById('tPlay').onclick = () => playing ? pauseTour() : playTour();
+document.getElementById('tNext').onclick = () => TOUR && show(Math.min(TOUR.steps.length - 1, step + 1));
+document.getElementById('tPrev').onclick = () => TOUR && show(Math.max(0, step - 1));
+document.getElementById('tStop').onclick = () => stopTour();
+</script>
+</body>
+</html>

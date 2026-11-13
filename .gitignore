@@ -1,0 +1,14 @@
+# secrets and local environment
+.env
+.venv/
+__pycache__/
+.DS_Store
+
+# downloaded and derived data (rebuilt by the scripts; ~12 GB)
+data/*
+!data/raw/
+data/raw/*
+!data/raw/manual/
+
+# build output; the published copy lives in docs/
+output/
