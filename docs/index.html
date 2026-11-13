@@ -55,6 +55,13 @@
   #chart .lg i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:3px; vertical-align:-1px; }
   #chart .cnote { font-size:10.5px; color:var(--muted); margin-top:6px; line-height:1.5; }
   @media (max-width:900px) { #chart { top:auto; bottom:190px; width:auto; left:16px; } }
+  #telop { position:absolute; left:0; right:0; bottom:18%; text-align:center; pointer-events:none; opacity:0; transition:opacity 1.2s; }
+  #telop.on { opacity:1; }
+  #telopMain { font-size:clamp(30px, 5.5vw, 64px); font-weight:800; letter-spacing:.08em; color:#fff;
+    text-shadow:0 2px 6px rgba(0,0,0,.85), 0 0 24px rgba(0,0,0,.6); }
+  #telopSub { font-size:clamp(17px, 2.6vw, 30px); font-weight:600; margin-top:8px; color:#ffe2b0; letter-spacing:.05em;
+    text-shadow:0 2px 5px rgba(0,0,0,.85), 0 0 18px rgba(0,0,0,.6); }
+  body.intro .panel, body.intro #tour, body.intro #caption, body.intro #chart { opacity:0; pointer-events:none; transition:opacity .6s; }
   .note { font-size:11px; color:var(--muted); margin-top:10px; line-height:1.5; }
   @media (max-width:600px) { .panel { top:auto; bottom:16px; } }
 </style>
@@ -63,9 +70,10 @@
 <div id="map"></div>
 <div id="charts"></div>
 <div id="chart" hidden></div>
+<div id="telop"><div id="telopMain"></div><div id="telopSub"></div></div>
 <div id="caption" hidden><div class="cap-head"><span id="capPart"></span><span id="capTitle"></span></div><div id="capText"></div></div>
 <div id="tour" hidden>
-  <button id="tPrev" title="前へ">⏮</button><button id="tPlay" title="再生">▶</button><button id="tNext" title="次へ">⏭</button><button id="tStop" title="終了">■</button>
+  <button id="tIntro" title="日本全体から歌志内へ">🗾</button><button id="tPrev" title="前へ">⏮</button><button id="tPlay" title="再生">▶</button><button id="tNext" title="次へ">⏭</button><button id="tStop" title="終了">■</button>
   <span id="tPos"></span>
 </div>
 <div class="panel">
@@ -102,7 +110,7 @@ const params = new URLSearchParams(location.search);
 const code = params.get('code') || '01227';
 const C = deck.COORDINATE_SYSTEM.METER_OFFSETS;
 const state = { opOut: 0.2, opIn: 0.8, ex: 1.5, popColor: true, year: 2020, pyr: false, chart: '', lblMuni: true, lblSmall: true, roads: true, rail: true, water: true };
-let D, origin, mesh, kx, ky;
+let D, origin, mesh, kx, ky, HOME;
 
 const toXY = (lon, lat) => [(lon - origin[0]) * kx, (lat - origin[1]) * ky];
 
@@ -316,7 +324,8 @@ fetch(`terrain_${code}.json`).then(r => r.json()).then(async d => {
   document.getElementById('title').textContent = `${d.name}と周辺の地形`;
   document.getElementById('sub').textContent = d.munis.filter(m => !m.target).map(m => m.name).join('・');
   const t = d.munis.find(m => m.target);
-  setView({ longitude: t.label[0], latitude: t.label[1], zoom: 11.2, pitch: 60, bearing: -30 });
+  HOME = { longitude: t.label[0], latitude: t.label[1], zoom: 11.2, pitch: 60, bearing: -30 };
+  setView(HOME);
   // one x-scale for every pyramid and year: the largest single band as a share of its small area
   pyrMax = Math.max(0.05, ...d.small.flatMap(s => Object.entries(s.ages || {}).flatMap(([y, a]) => {
     const t = s.pops[y]; return t ? [...a.m, ...a.f].map((v, i) => (v || 0) / bandRows(i % AGE_N)[1] / t) : [];
@@ -413,12 +422,73 @@ function drawChart() {
 }
 document.getElementById('chartSel').onchange = e => { state.chart = e.target.value; drawChart(); };
 
+// ---- intro: all of Japan, turning once while zooming in to the target, ending on the default view ----
+const INTRO_DEF = { from: { longitude: 137.6, latitude: 37.2, zoom: 4.4, pitch: 30, bearing: 330 }, duration: 16000,
+  telop: ['{name}', '人口{pop}人（2020年）'] };
+let introOn = false, introReady = null;
+if (params.get('intro')) document.body.classList.add('intro');  // hide the panels from the first frame when recording
+// one object for the whole run: a new decoder each frame would make every tile reload
+const JP_DECODER = { rScaler: 256 * 1.5, gScaler: 1.5, bScaler: 1.5 / 256, offset: -32768 * 1.5 };
+function introLayers(jf, lf) {  // jf: Japan terrain opacity, lf: local scene opacity
+  const t = D.munis.find(m => m.target), out = [];
+  if (jf > 0) out.push(
+    new deck.TerrainLayer({ id: 'japan', opacity: jf, minZoom: 0, maxZoom: 12, strategy: 'no-overlap',
+      onViewportLoad: () => introReady && introReady(),
+      elevationData: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
+      texture: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+      elevationDecoder: JP_DECODER, meshMaxError: 6, color: [14, 17, 22] }),  // tiles without imagery blend into the background
+    new deck.PathLayer({ id: 'intro-outline', data: t.rings, getPath: r => r, getColor: [255, 214, 90], getWidth: 3,
+      widthUnits: 'pixels', widthMinPixels: 2, opacity: jf, parameters: { depthCompare: 'always' } }),
+    new deck.ScatterplotLayer({ id: 'intro-pin', data: [t], getPosition: d => d.label, getRadius: 9, radiusUnits: 'pixels',
+      getFillColor: [255, 214, 90], getLineColor: [255, 255, 255], lineWidthUnits: 'pixels', getLineWidth: 2, stroked: true,
+      opacity: jf * Math.max(0, Math.min(1, (10 - view.zoom) / 2)), parameters: { depthCompare: 'always' } }));
+  if (lf > 0) for (const l of layers()) out.push(l.clone({ opacity: (l.props.opacity ?? 1) * lf }));
+  return out;
+}
+function runIntro(then) {
+  if (!D || introOn) return;
+  pauseTour(); introOn = true; document.body.classList.add('intro');
+  const cfg = { ...INTRO_DEF, ...(TOUR && TOUR.intro || {}) };
+  const pop = D.small.reduce((a, s) => a + (s.pops?.[2020] ?? s.pop ?? 0), 0);
+  const fill = x => x.replace('{name}', D.name).replace('{pop}', pop.toLocaleString());
+  document.getElementById('telopMain').textContent = fill(cfg.telop[0]);
+  document.getElementById('telopSub').textContent = fill(cfg.telop[1] || '');
+  const telop = document.getElementById('telop'); telop.classList.remove('on');
+  map.setProps({ controller: false });
+  const A = { ...cfg.from }, B = HOME, T = cfg.duration;
+  let t0 = Infinity;
+  const sm = x => x * x * (3 - 2 * x), cl = x => Math.max(0, Math.min(1, x));
+  // start moving once the first view of Japan has loaded (or after 8 s at most), holding it for a moment
+  const go = () => { if (t0 === Infinity) t0 = performance.now() + 1200; introReady = null; };
+  introReady = go; setTimeout(go, 8000);
+  setView(A); map.setProps({ layers: introLayers(1, 0) });
+  const tick = now => {
+    if (!introOn) return;
+    if (now < t0) return requestAnimationFrame(tick);
+    const t = cl((now - t0) / T), z = sm(t), c = 1 - (1 - cl(t / 0.6)) ** 3;  // centre arrives early, zoom keeps going
+    setView({ longitude: A.longitude + (B.longitude - A.longitude) * c, latitude: A.latitude + (B.latitude - A.latitude) * c,
+      zoom: A.zoom + (B.zoom - A.zoom) * z, pitch: A.pitch + (B.pitch - A.pitch) * z,
+      bearing: B.bearing + (A.bearing - B.bearing) * (1 - z) });
+    if (t > 0.35) telop.classList.add('on');
+    const f = cl((t - 0.82) / 0.18);  // last part: Japan fades out, the usual scene fades in
+    map.setProps({ layers: introLayers(1 - f, f) });
+    if (t < 1) return requestAnimationFrame(tick);
+    setTimeout(() => {
+      telop.classList.remove('on'); introOn = false; document.body.classList.remove('intro');
+      map.setProps({ controller: true }); redraw(); if (then) then();
+    }, 2500);
+  };
+  requestAnimationFrame(tick);
+}
+document.getElementById('tIntro').onclick = () => runIntro();
+
 // ---- guided tour: tour_<code>.json steps, read aloud with the browser's speech synthesis ----
 const tourEl = document.getElementById('tour'), capEl = document.getElementById('caption'), panelEl = document.querySelector('.panel');
 let TOUR = null, step = -1, playing = false, run = 0, yearTimer = null, camAnim = null;
 async function loadTour() {
-  try { TOUR = await (await fetch(`tour_${code}.json`)).json(); } catch { return; }
-  tourEl.hidden = false; showPos();
+  try { TOUR = await (await fetch(`tour_${code}.json`)).json(); } catch { TOUR = null; }
+  if (TOUR) { tourEl.hidden = false; showPos(); }
+  if (params.get('intro')) setTimeout(() => runIntro(), 1000);
 }
 function showPos() {
   document.getElementById('tPos').textContent = step < 0 ? `${TOUR.steps.length}場面` : `${step + 1} / ${TOUR.steps.length}`;
@@ -471,8 +541,8 @@ function speak(text, id, done, audio) {  // prepared audio file if the step has 
   const mark = i => document.querySelectorAll('#capText span').forEach(s => s.classList.toggle('now', +s.dataset.i === i));
   if (audio) {  // highlight follows playback time, split by sentence length
     const cum = parts.reduce((a, p) => [...a, (a.at(-1) || 0) + p.length], []), tot = cum.at(-1);
-    audioEl = new Audio(audio);
-    audioEl.ontimeupdate = () => { const f = audioEl.currentTime / (audioEl.duration || 1) * tot; mark(cum.findIndex(c => f < c)); };
+    const a = audioEl = new Audio(audio);
+    a.ontimeupdate = () => { const f = a.currentTime / (a.duration || 1) * tot; mark(cum.findIndex(c => f < c)); };
     audioEl.onended = () => { if (id === run) { mark(-1); done(); } };
     audioEl.onerror = () => { audioEl = null; if (id === run) speak(text, id, done); };
     audioEl.play().catch(() => audioEl && audioEl.onerror());
