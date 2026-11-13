@@ -16,6 +16,7 @@ Run:    .venv/bin/python scripts/build_3d_terrain.py [pref_code city_name] [--me
 """
 
 import json
+import argparse
 import sys
 from pathlib import Path
 
@@ -32,18 +33,31 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fetch_gsi_dem import fetch  # noqa: E402
 
-args = [a for a in sys.argv[1:] if not a.startswith("--")]
-MESH3 = "--mesh3" in sys.argv
-RES_M = float(sys.argv[sys.argv.index("--res") + 1]) if "--res" in sys.argv else 30.0
-if "--res" in sys.argv:
-    args.remove(sys.argv[sys.argv.index("--res") + 1])
-PREF, CITY = (args[0], args[1]) if len(args) > 1 else ("01", "歌志内市")
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("pref", nargs="?", default="01")
+parser.add_argument("city", nargs="?", default="歌志内市")
+parser.add_argument("--mesh3", action="store_true")
+parser.add_argument("--res", type=float, default=30)
+parser.add_argument("--margin-km", type=float, help="Clip context to a rectangle around the target, padded by this many km")
+args = parser.parse_args()
+if args.res <= 0 or (args.margin_km is not None and args.margin_km <= 0):
+    parser.error("resolution and margin must be positive")
+PREF, CITY, MESH3, RES_M = args.pref, args.city, args.mesh3, args.res
 SUB = 4  # mesh3 mode: grid nodes per mesh3 cell side
 
 muni = gpd.read_parquet(PROC / f"municipality/pref={PREF}/data.parquet").dissolve("city_code", aggfunc="first")
 target = muni[muni.city_name == CITY]
 code = target.index[0]
 near = muni[muni.intersects(target.union_all().buffer(0.001))].copy()
+if args.margin_km is not None:
+    # Use metres in the local UTM zone, rather than a latitude-dependent degree buffer.
+    metric = target.estimate_utm_crs()
+    bounds = target.to_crs(metric).total_bounds
+    margin = args.margin_km * 1000
+    extent = gpd.GeoSeries([shapely.box(bounds[0] - margin, bounds[1] - margin,
+                                      bounds[2] + margin, bounds[3] + margin)], crs=metric).to_crs(muni.crs).iloc[0]
+    near = muni[muni.intersects(extent)].copy()
+    near.geometry = near.geometry.intersection(extent)
 area = near.union_all()
 minx, miny, maxx, maxy = area.bounds
 
@@ -106,6 +120,7 @@ inside = shapely.contains_xy(area.buffer(dlat * 0.7), gx, gy)
 grid = np.where(inside, np.round(grid, 1), np.nan)
 tmask = shapely.contains_xy(target.union_all(), gx, gy)  # nodes inside the target municipality
 dst = ROOT / "output" / "3d" / f"terrain_{code}.json"
+dst.parent.mkdir(parents=True, exist_ok=True)
 meta = {"lon0": lons[0], "lat0": lats[0], "dlon": dlon, "dlat": dlat, "nx": len(lons), "ny": len(lats)}
 if MESH3:
     meta["z"] = [None if np.isnan(v) else float(v) for v in grid.ravel()]
