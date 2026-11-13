@@ -6,6 +6,8 @@
 
 **歌志内市（北海道）**: https://okuyamashin.github.io/chiiki-3d/
 
+動画（YouTube）：[北海道歌志内市の概要と人口変動](https://youtu.be/yIbe7Qq4iUc)
+
 - 10mメッシュの標高から作った地形の上に、道路・鉄道・川と、9つの字の境界を重ねています。
 - 字ごとの人口（2000〜2020年）で色を付け、男女・年齢別の人口ピラミッドを表示します。
 - 1920年からの人口の推移と、産業別の就業者のグラフを切り替えて表示できます。
@@ -46,6 +48,8 @@ sh scripts/publish_pages.sh 01227                    # 公開用に docs/ へコ
 ビューアは `output/3d/` を配信して `terrain.html?code=01227` を開きます（`python3 -m http.server 8791 --directory output/3d`）。
 
 ### 動画の書き出し
+
+動画制作の全体の手順は [VIDEO.md](VIDEO.md) にまとめています。
 
 オープニングと説明ツアーを1コマずつ描いて、1本の MP4 にします（Google Chrome、Node.js、ffmpeg が必要）。ビューアを配信した状態で実行します。
 
