@@ -102,3 +102,19 @@ sh scripts/make_movie.sh 01227                  # つなげる → output/video/
 上小阿仁村の公開ビューア：https://okuyamashin.github.io/chiiki-3d/?code=05327
 
 YouTube・noteの公開用文章、字幕、画像は [publication/05327](publication/05327/) に収録しています。本編MP4はサイズが大きいためリポジトリには含めません。
+
+### 赤平市：歌志内との比較
+
+赤平市（`01218`）の30m地形と15場面の解説ツアーです。通勤の流入・流出、20代男女、50〜60代の同世代人口、傾斜の緩い土地を歌志内と比較します。
+
+```sh
+.venv/bin/python -I scripts/build_3d_terrain.py 01 赤平市 --margin-km 8
+.venv/bin/python scripts/compare_akabira_utashinai.py
+.venv/bin/python scripts/prepare_akabira.py
+.venv/bin/python scripts/compile_terrain_tour.py 01218
+cp docs/index.html output/3d/terrain.html
+```
+
+`http://localhost:8791/terrain.html?code=01218`。解説はブラウザの日本語音声で再生します。Otani音声と動画は未生成です。台本は [articles/tour_01218.md](articles/tour_01218.md)、比較の方法は [articles/comparison_01218_01227.md](articles/comparison_01218_01227.md)。`prepare_akabira.py` は歌志内の生成済み地形も使用します。
+
+194小地域の人口は全区分を色で表示し、地名・地区別人口ピラミッドは混雑を避け人口上位12区分に絞っています。人口の総数と15歳以上の分母は、秘匿を含む小地域の年齢の合算ではなく市全体の総数を使用します。比較表は「グラフ」から選択できます。

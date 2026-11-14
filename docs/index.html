@@ -90,7 +90,7 @@
   <span id="tPos"></span>
 </div>
 <div class="panel">
-  <div style="margin-bottom:8px"><a style="color:#b8dcff" href="?code=01227">歌志内市</a> ／ <a style="color:#b8dcff" href="?code=05327">上小阿仁村</a></div>
+  <div style="margin-bottom:8px"><a style="color:#b8dcff" href="?code=01227">歌志内市</a> ／ <a style="color:#b8dcff" href="?code=05327">上小阿仁村</a> ／ <a style="color:#b8dcff" href="?code=01218">赤平市</a></div>
   <h1 id="title">地形</h1>
   <div class="sub" id="sub"></div>
   <div class="row"><div class="label"><span>高さの強調</span><span id="exVal"></span></div>
@@ -257,11 +257,13 @@ function layers() {
   ];
   const text = (id, data, size, color) => new deck.TextLayer({ id, data, coordinateSystem: C, coordinateOrigin: [...origin, 0],
     getPosition: d => [...toXY(...d.label), zAt(...d.label) * state.ex + 120], getText: d => d.name.replace(/^字/, '') + (state.popColor && popOf(d) != null ? `\n${popOf(d).toLocaleString()}人` : ''),
+    extensions: id === 'lbl-small' && D.viewer?.labelLimit && deck.CollisionFilterExtension ? [new deck.CollisionFilterExtension()] : [],
+    collisionEnabled: true, getCollisionPriority: d => popOf(d) || 0, collisionGroup: 'small-labels',
     getSize: size, getColor: color, characterSet: 'auto', fontFamily: 'Hiragino Sans, Noto Sans JP, sans-serif',
     fontWeight: 600, outlineWidth: 3, outlineColor: [14, 17, 22, 220], fontSettings: { sdf: true }, parameters: { depthCompare: 'always' },
     updateTriggers: { getPosition: state.ex, getText: [state.popColor, state.year] } });
   if (state.lblMuni) out.push(text('lbl-muni', D.munis, d => d.target ? 18 : 15, [255, 255, 255]));
-  if (state.lblSmall) out.push(text('lbl-small', D.small, 12, [220, 175, 255]));
+  if (state.lblSmall) out.push(text('lbl-small', visibleSmall(), 12, [220, 175, 255]));
   return out;
 }
 
@@ -298,10 +300,15 @@ function pyramidSVG(a, tot) {
   const t = (x, y, s, anchor) => `<text x="${x}" y="${y}" font-size="8" fill="#9aa3b0" text-anchor="${anchor}">${s}</text>`;
   return `<svg width="${W}" height="${H + 9}">${b}${t(0, y65 - 1.5, '65+', 'start')}${t(0, H + 8, '男', 'start')}${t(W, H + 8, '女', 'end')}</svg>`;
 }
+function visibleSmall() {
+  if (state.focus?.length) return D.small.filter(s => state.focus.includes(s.name));
+  const n = D.viewer?.labelLimit;
+  return n ? [...D.small].sort((a,b) => (popOf(b)||0)-(popOf(a)||0)).slice(0,n) : D.small;
+}
 function buildPyramids() {
   const box = document.getElementById('charts'); box.innerHTML = ''; pyrEls = [];
   if (!D || !state.pyr || !state.popColor) return;
-  for (const s of D.small) {
+  for (const s of visibleSmall()) {
     const a = s.ages && s.ages[state.year], tot = popOf(s);
     if (!a || !tot) continue;
     const el = document.createElement('div'); el.className = 'pyr'; el.innerHTML = pyramidSVG(a, tot);
@@ -341,6 +348,8 @@ fetch(`terrain_${code}.json`).then(r => r.json()).then(async d => {
   const longrunOption = document.querySelector('option[value="longrun"]');
   longrunOption.disabled = !d.city?.longrun?.length;
   if (longrunOption.disabled) longrunOption.textContent = '長期人口（準備中）';
+  for (const [key, a] of Object.entries(d.city.analysis || {})) { const o = document.createElement('option'); o.value = key; o.textContent = a.title; document.getElementById('chartSel').append(o); }
+  if (d.viewer?.labelLimit) document.querySelector('label:has(#lblSmall)').append(`（人口上位${d.viewer.labelLimit}区分）`);
   document.getElementById('sub').textContent = d.munis.filter(m => !m.target).map(m => m.name).join('・');
   const t = d.munis.find(m => m.target);
   HOME = { longitude: t.label[0], latitude: t.label[1], zoom: 11.2, pitch: 60, bearing: -30 };
@@ -365,7 +374,7 @@ ex.oninput = () => { state.ex = +ex.value; showEx(); mesh = buildMesh(state.ex);
 document.getElementById('legend').innerHTML = POP.map(([, c, t]) => `<span><i style="background:rgb(${c})"></i>${t}</span>`).join('');
 const yearEl = document.getElementById('year');
 function showYear() {
-  const tot = D ? D.small.reduce((a, s) => a + (popOf(s) || 0), 0) : null;
+  const tot = D ? (D.city.pops?.[state.year] ?? D.small.reduce((a, s) => a + (popOf(s) || 0), 0)) : null;
   document.getElementById('yearVal').textContent = `${state.year}年` + (tot != null ? `（${D.name.slice(-1)}全体 ${tot.toLocaleString()}人）` : '');
 }
 yearEl.oninput = () => { state.year = +yearEl.value; showYear(); if (D) { redraw(); buildPyramids(); drawChart(); } };
@@ -397,14 +406,14 @@ function chartLongrun() {
   for (const v of [0, 10000, 20000, 30000, 40000, 50000])
     g += `<line x1="${l}" x2="${W - r}" y1="${Y(v)}" y2="${Y(v)}" stroke="#2b323d"/><text x="${l - 5}" y="${Y(v) + 3.5}" font-size="9.5" fill="#9aa3b0" text-anchor="end">${v ? v / 10000 + '万' : 0}</text>`;
   for (let y = 1920; y <= 2020; y += 20) g += `<text x="${X(y)}" y="${H - 6}" font-size="9.5" fill="#9aa3b0" text-anchor="middle">${y}</text>`;
-  for (const [y, lab] of [[1971, '閉山'], [1988, '閉山・廃線'], [1995, '最後の閉山']])
+  for (const [y, lab] of (code === '01227' ? [[1971, '閉山'], [1988, '閉山・廃線'], [1995, '最後の閉山']] : []))
     g += `<line x1="${X(y)}" x2="${X(y)}" y1="${t}" y2="${H - b}" stroke="#ffb347" stroke-dasharray="3 3" stroke-opacity=".7"/>
       <text x="${X(y) + 3}" y="${Y(y === 1971 ? 31000 : y === 1988 ? 25500 : 20000)}" font-size="9.5" fill="#ffb347">${y} ${lab}</text>`;
   const pts = L.map(([y, v]) => `${X(y)},${Y(v)}`).join(' ');
   g += `<polygon points="${X(L[0][0])},${Y(0)} ${pts} ${X(L.at(-1)[0])},${Y(0)}" fill="#5aa0f0" fill-opacity=".18"/>`;
   g += `<polyline points="${pts}" fill="none" stroke="#5aa0f0" stroke-width="2"/>`;
   g += L.map(([y, v]) => `<circle cx="${X(y)}" cy="${Y(v)}" r="${y === state.year ? 4 : 2}" fill="${y === state.year ? '#fff' : '#5aa0f0'}"><title>${y}年 ${v.toLocaleString()}人</title></circle>`).join('');
-  g += `<circle cx="${X(1948)}" cy="${Y(46171)}" r="3.5" fill="none" stroke="#fff"/><text x="${X(1948) + 6}" y="${Y(46171) + 3}" font-size="9.5" fill="#fff">1948 約4.6万人（ピーク）</text>`;
+  if (code === '01227') g += `<circle cx="${X(1948)}" cy="${Y(46171)}" r="3.5" fill="none" stroke="#fff"/><text x="${X(1948) + 6}" y="${Y(46171) + 3}" font-size="9.5" fill="#fff">1948 約4.6万人（ピーク）</text>`;
   const last = L.at(-1);
   g += `<text x="${X(last[0]) - 2}" y="${Y(last[1]) - 7}" font-size="10" fill="#fff" text-anchor="end">${last[0]} ${last[1].toLocaleString()}人</text>`;
   return `<h2>人口の推移</h2><div class="csub">国勢調査（1948年は常住人口調査）</div><svg viewBox="0 0 ${W} ${H}">${g}</svg>
@@ -440,9 +449,19 @@ function chartIndustryAza() {
   return `<h2>字ごとの仕事（${y}年）</h2><div class="csub">就業者の産業の内訳。人数の後ろは15歳以上に占める割合</div>
     <svg viewBox="0 0 ${W} ${H}">${g}</svg>${legend()}${y === 2000 ? '<div class="cnote">2000年は医療・福祉が「その他のサービス」に含まれています。</div>' : ''}`;
 }
+// Optional area-specific comparison tables, supplied as data rather than hardcoded town claims.
+function chartAnalysis(key) {
+  const a = D.city.analysis?.[key]; if (!a) return '';
+  const esc = x => String(x).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  return `<h2>${esc(a.title)}</h2><div class="csub">${esc(a.subtitle)}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;line-height:1.6">
+    <thead><tr>${a.columns.map(c => `<th style="padding:6px 3px;border-bottom:1px solid #46505e;text-align:left">${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${a.rows.map(r => `<tr>${r.map((c,i) => `<td style="padding:7px 3px;border-bottom:1px solid #2b323d;${i ? 'text-align:right' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <div class="cnote">${esc(a.note)}</div>`;
+}
 function drawChart() {
   const el = document.getElementById('chart'), k = state.chart;
-  const html = !D || !D.city ? '' : k === 'longrun' ? chartLongrun() : k === 'industry' ? chartIndustry() : k === 'industryAza' ? chartIndustryAza() : '';
+  const html = !D || !D.city ? '' : k === 'longrun' ? chartLongrun() : k === 'industry' ? chartIndustry() : k === 'industryAza' ? chartIndustryAza() : chartAnalysis(k);
   el.hidden = !html; el.innerHTML = html;
   document.getElementById('chartSel').value = k || '';
 }
