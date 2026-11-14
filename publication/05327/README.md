@@ -5,4 +5,6 @@
 - 本編MP4：ローカルの output/video/movie_05327.mp4（Gitには含めません）
 - 公開ビューア：https://okuyamashin.github.io/chiiki-3d/?code=05327
 
-YouTubeへのアップロード後、note本文の動画挿入位置を実際のURLに置き換えてください。字幕時刻は文の長さから推定しており、公開前に再生確認してください。
+YouTube：https://youtu.be/acN0Qy7RMnI
+
+note本文に動画URLを反映済みです。note編集画面ではURLを単独行に貼り付け、埋め込み表示を確認してください。字幕時刻は文の長さから推定しており、公開前に再生確認してください。
