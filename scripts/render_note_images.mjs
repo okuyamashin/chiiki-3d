@@ -44,24 +44,29 @@ const scene = (set, v, label) => page.evaluate(([set, v, label]) => {
 
 // charts: the chart card alone, at 3x so it stays sharp in the article
 await page.setViewportSize({ width: 1200, height: 675 });
-for (const [name, chart] of [['01_longrun', 'longrun'], ['02_industry', 'industry']]) {
+for (const [name, chart] of (code === '05327' ? [['02_industry', 'industry']] : [['01_longrun', 'longrun'], ['02_industry', 'industry']])) {
   await scene({ chart, year: 2020, popColor: true, pyr: false }, { at: 'target', zoom: 11.2, pitch: 60, bearing: -30 });
   await settle();
   await page.locator('#chart').screenshot({ path: join(out, `${name}.png`), scale: 'device' });
   console.log(`${name}.png`);
 }
 
+if (code === '05327') {
+  await scene({ chart: '', year: 2020, popColor: false, pyr: false }, { at: [140.31,39.95], zoom: 10.25, pitch: 45, bearing: -15 }, '上小阿仁村の地形');
+  await settle();
+  await page.screenshot({ path: join(out, '01_terrain.png') });
+}
 // the map coloured by 2020 population, no chart
-const MAPVIEW = { at: 'target', zoom: 11.9, pitch: 55, bearing: -30, shift: [0, 0.004] };
+const MAPVIEW = code === '05327' ? { at: [140.31,40.052], zoom: 11.55, pitch: 45, bearing: -15 } : { at: 'target', zoom: 11.9, pitch: 55, bearing: -30, shift: [0, 0.004] };
 await scene({ chart: '', year: 2020, popColor: true, pyr: false }, MAPVIEW);
 await settle();
 await page.screenshot({ path: join(out, '03_map2020.png') });
 console.log('03_map2020.png');
 
 // 2000 and 2020 with age pyramids, stacked
-const CMP = { at: 'target', zoom: 12.3, pitch: 45, bearing: -30, shift: [0, 0.012] };
+const CMP = code === '05327' ? { at: [140.31,40.052], zoom: 11.4, pitch: 45, bearing: -15 } : { at: 'target', zoom: 12.3, pitch: 45, bearing: -30, shift: [0, 0.012] };
 for (const y of [2000, 2020]) {
-  await scene({ chart: '', year: y, popColor: true, pyr: true }, CMP, `${y}年`);
+  await scene({ chart: '', year: y, popColor: true, pyr: code !== '05327' }, CMP, `${y}年`);
   await settle();
   await page.screenshot({ path: join(out, `_cmp_${y}.png`) });
 }

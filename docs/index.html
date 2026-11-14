@@ -44,6 +44,17 @@
   #capTitle { font-size:15px; font-weight:600; }
   #capText { font-size:13.5px; line-height:1.75; color:#c9ced6; }
   #capText .now { color:#fff; background:rgba(255,179,71,.18); border-radius:3px; }
+  body.editorial #caption { left:50%; right:auto; bottom:70px; transform:translateX(-50%); width:max-content; max-width:calc(100% - 48px); text-align:center; }
+  body.editorial #capText { font-size:14px; }
+  body.editorial #capTitle { font-size:21px; }
+  #sceneCard { position:absolute; top:16px; right:16px; width:320px; max-width:calc(100% - 32px); box-sizing:border-box;
+    background:rgba(14,17,22,.93); border:1px solid var(--line); border-radius:12px; padding:14px 16px; line-height:1.7; }
+  #sceneCard h2 { margin:0 0 8px; font-size:17px; }
+  #sceneCard p { margin:5px 0; font-size:14px; }
+  #sceneCard small { display:block; margin-top:8px; color:var(--muted); font-size:10px; }
+  #sceneCard[hidden] { display:none; }
+  body.intro #sceneCard { display:none; }
+  body.render.editorial #caption { bottom:22px; }
   @media (max-width:900px) { #caption { left:16px; right:16px; bottom:72px; } }
   #chart { position:absolute; top:16px; right:16px; width:360px; max-width:calc(100% - 32px); box-sizing:border-box;
     background:rgba(14,17,22,.9); border:1px solid var(--line); border-radius:12px; padding:12px 14px 10px; backdrop-filter:blur(6px); }
@@ -71,13 +82,15 @@
 <div id="map"></div>
 <div id="charts"></div>
 <div id="chart" hidden></div>
+<div id="sceneCard" hidden></div>
 <div id="telop"><div id="telopMain"></div><div id="telopSub"></div></div>
 <div id="caption" hidden><div class="cap-head"><span id="capPart"></span><span id="capTitle"></span></div><div id="capText"></div></div>
 <div id="tour" hidden>
-  <button id="tIntro" title="日本全体から歌志内へ">🗾</button><button id="tPrev" title="前へ">⏮</button><button id="tPlay" title="再生">▶</button><button id="tNext" title="次へ">⏭</button><button id="tStop" title="終了">■</button>
+  <button id="tIntro" title="日本全体から地域へ">🗾</button><button id="tPrev" title="前へ">⏮</button><button id="tPlay" title="再生">▶</button><button id="tNext" title="次へ">⏭</button><button id="tStop" title="終了">■</button>
   <span id="tPos"></span>
 </div>
 <div class="panel">
+  <div style="margin-bottom:8px"><a style="color:#b8dcff" href="?code=01227">歌志内市</a> ／ <a style="color:#b8dcff" href="?code=05327">上小阿仁村</a></div>
   <h1 id="title">地形</h1>
   <div class="sub" id="sub"></div>
   <div class="row"><div class="label"><span>高さの強調</span><span id="exVal"></span></div>
@@ -96,8 +109,8 @@
   <div class="row" style="margin-top:6px"><div class="label"><span>グラフ</span></div>
     <select id="chartSel" style="width:100%;background:#1d232c;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px">
       <option value="">表示しない</option><option value="longrun">人口の推移（1920〜2020年）</option>
-      <option value="industry">産業別の就業者（市全体）</option><option value="industryAza">産業別の就業者（字ごと）</option></select></div>
-  <label class="cb"><input type="checkbox" id="roads" checked>道路<span class="key"><i style="background:#f07828"></i>高速 <i style="background:#e0463c"></i>国道 <i style="background:#f5c84a"></i>道道 <i style="background:#c8c8c8"></i>市町村道</span></label>
+      <option value="industry">産業別の就業者（全体）</option><option value="industryAza">産業別の就業者（字ごと）</option></select></div>
+  <label class="cb"><input type="checkbox" id="roads" checked>道路<span class="key"><i style="background:#f07828"></i>高速 <i style="background:#e0463c"></i>国道 <i style="background:#f5c84a"></i><span id="prefRoad">都道府県道</span> <i style="background:#c8c8c8"></i>市町村道</span></label>
   <label class="cb"><input type="checkbox" id="rail" checked>鉄道<span class="key"><i class="rail"></i>JR</span></label>
   <label class="cb"><input type="checkbox" id="water" checked>川・湖<span class="key"><i style="background:#3c8ce6"></i></span></label>
   <label class="cb"><input type="checkbox" id="lblMuni" checked>市町村名</label>
@@ -323,9 +336,21 @@ fetch(`terrain_${code}.json`).then(r => r.json()).then(async d => {
   kx = 111320 * Math.cos(origin[1] * Math.PI / 180); ky = 110574;
   document.title = `${d.name}の地形`;
   document.getElementById('title').textContent = `${d.name}と周辺の地形`;
+  document.getElementById('prefRoad').textContent = code.startsWith('01') ? '道道' : code.startsWith('13') ? '都道' : ['26', '27'].includes(code.slice(0, 2)) ? '府道' : '県道';
+  document.getElementById('tIntro').title = `日本全体から${d.name}へ`;
+  const longrunOption = document.querySelector('option[value="longrun"]');
+  longrunOption.disabled = !d.city?.longrun?.length;
+  if (longrunOption.disabled) longrunOption.textContent = '長期人口（準備中）';
   document.getElementById('sub').textContent = d.munis.filter(m => !m.target).map(m => m.name).join('・');
   const t = d.munis.find(m => m.target);
   HOME = { longitude: t.label[0], latitude: t.label[1], zoom: 11.2, pitch: 60, bearing: -30 };
+  if (d.context) {
+    const points = t.rings.flat(), xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+    const bounds = [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]];
+    const fitted = new deck.WebMercatorViewport({ width: Math.max(320, innerWidth - 350), height: innerHeight })
+      .fitBounds(bounds, { padding: 65 });
+    HOME = { longitude: fitted.longitude, latitude: fitted.latitude, zoom: fitted.zoom - 0.25, pitch: 45, bearing: -15 };
+  }
   setView(HOME);
   // one x-scale for every pyramid and year: the largest single band as a share of its small area
   pyrMax = Math.max(0.05, ...d.small.flatMap(s => Object.entries(s.ages || {}).flatMap(([y, a]) => {
@@ -341,7 +366,7 @@ document.getElementById('legend').innerHTML = POP.map(([, c, t]) => `<span><i st
 const yearEl = document.getElementById('year');
 function showYear() {
   const tot = D ? D.small.reduce((a, s) => a + (popOf(s) || 0), 0) : null;
-  document.getElementById('yearVal').textContent = `${state.year}年` + (tot != null ? `（市全体 ${tot.toLocaleString()}人）` : '');
+  document.getElementById('yearVal').textContent = `${state.year}年` + (tot != null ? `（${D.name.slice(-1)}全体 ${tot.toLocaleString()}人）` : '');
 }
 yearEl.oninput = () => { state.year = +yearEl.value; showYear(); if (D) { redraw(); buildPyramids(); drawChart(); } };
 for (const k of ['popColor', 'pyr', 'lblMuni', 'lblSmall', 'roads', 'rail', 'water'])
@@ -398,9 +423,9 @@ function chartIndustry() {
     const rate = C.pop15[y] ? Math.round(d.employed / C.pop15[y] * 100) : null;
     g += `<text x="${l + (W - l - r) * d.employed / max + 5}" y="${yy + 14}" font-size="10" fill="#c9ced6">${fmt(d.employed)}人${rate != null ? `・${rate}%` : ''}</text>`;
   });
-  return `<h2>産業別の就業者（市に住んで働く人）</h2><div class="csub">国勢調査。人数の後ろは15歳以上に占める割合</div>
+  return `<h2>産業別の就業者（${D.name}に住んで働く人）</h2><div class="csub">国勢調査。人数の後ろは15歳以上に占める割合</div>
     <svg viewBox="0 0 ${W} ${H}">${g}</svg>${legend()}
-    <div class="cnote">2000年は医療・福祉が「その他のサービス」に含まれています。勤め先が市外の人も含みます。</div>`;
+    <div class="cnote">2000年は医療・福祉が「その他のサービス」に含まれています。勤め先が自治体の外にある人も含みます。</div>`;
 }
 function chartIndustryAza() {
   const y = state.year, rows = D.small.filter(s => s.ind?.[y]?.employed), W = 330, rowH = 24, l = 40, r = 74, H = rows.length * rowH + 4;
@@ -466,6 +491,7 @@ function introLayers(jf, lf) {  // jf: Japan terrain opacity, lf: local scene op
 const HOLD = 1200, TAIL = 2500, FADE = 1200;
 let introCfg = null;
 function introSetup() {
+  if (TOUR?.presentation === 'editorial') HOME = viewFor(TOUR.steps[0].camera[0], TOUR.steps[0].focus || []);
   introCfg = { ...INTRO_DEF, ...(TOUR && TOUR.intro || {}) };
   const pop = D.small.reduce((a, s) => a + (s.pops?.[2020] ?? s.pop ?? 0), 0);
   const fill = x => x.replace('{name}', D.name).replace('{pop}', pop.toLocaleString());
@@ -520,7 +546,14 @@ const tourEl = document.getElementById('tour'), capEl = document.getElementById(
 let TOUR = null, step = -1, playing = false, run = 0, yearTimer = null, camAnim = null;
 async function loadTour() {
   try { TOUR = await (await fetch(`tour_${code}.json`)).json(); } catch { TOUR = null; }
-  if (TOUR) { tourEl.hidden = false; showPos(); }
+  if (TOUR) {
+    document.body.classList.toggle('editorial', TOUR.presentation === 'editorial'); tourEl.hidden = false; showPos();
+    if (TOUR.presentation === 'editorial') initRecordingPlayer();
+  }
+  else {
+    tourEl.hidden = false;
+    for (const id of ['tPrev', 'tPlay', 'tNext', 'tStop', 'tPos']) document.getElementById(id).style.display = 'none';
+  }
   if (params.get('intro') && !params.get('render')) setTimeout(() => runIntro(), 1000);
   if (params.get('render')) window.introRender.ready = true;
 }
@@ -560,6 +593,39 @@ function flyTo(target, ms = 2200) {  // own easing so the controlled viewState s
 }
 const sentences = t => t.match(/[^。]+。?/g) || [t];
 
+// Scene-local keyframes and concise overlays, shared by live playback and frame rendering.
+function sceneAt(st, elapsed, duration) {
+  const t = Math.max(0, Math.min(st.duration, elapsed * st.duration / duration));
+  const K = st.camera; let i = 0;
+  while (i + 1 < K.length && K[i + 1].t <= t) i++;
+  const a = viewFor(K[i], st.focus || []), b = viewFor(K[Math.min(i + 1, K.length - 1)], st.focus || []);
+  const span = (K[i + 1]?.t ?? K[i].t) - K[i].t;
+  const u = span > 0 ? Math.min(1, (t - K[i].t) / span) : 0;
+  const e = u < .5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+  const v = {}; for (const k of ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']) v[k] = a[k] + (b[k] - a[k]) * e;
+  setView(v);
+  const c = st.captions.find(c => t >= c.t0 && t < c.t1);
+  capEl.hidden = !c;
+  document.getElementById('capPart').textContent = st.part || '';
+  document.getElementById('capTitle').textContent = c?.text || '';
+  document.getElementById('capText').textContent = c?.sub || '';
+  const card = st.cards.find(c => t >= c.t0 && t < c.t1), el = document.getElementById('sceneCard');
+  const key = JSON.stringify(card || null);
+  if (el.dataset.key !== key) {
+    el.dataset.key = key; el.replaceChildren(); el.hidden = !card;
+    if (card) {
+      const h = document.createElement('h2'); h.textContent = card.title; el.append(h);
+      for (const row of card.rows) { const p = document.createElement('p'); p.textContent = row; el.append(p); }
+      const note = document.createElement('small'); note.textContent = card.source || ''; el.append(note);
+    }
+  }
+  if (st.yearAnim) {
+    const [y0, y1] = st.yearAnim;
+    const y = Math.min(y1, y0 + 5 * Math.floor(t / st.duration * ((y1 - y0) / 5 + 1)));
+    if (state.year !== y) applyState({ year: y });
+  }
+}
+
 // ---- frame-by-frame tour for video (scripts/render_tour.mjs). Same timing as playing live with audio:
 // camera flies 2.2 s from the step start, narration starts at +1.2 s, the next step 0.9 s after it ends.
 const FLY = 2200, SAY = 1200, GAP = 900, END = 2500;
@@ -589,6 +655,11 @@ window.tourRender = {
       TR.mark = -2; TR.year = null;
     }
     const s = st[i], f = TR.from, to = TR.to;
+    if (TOUR.presentation === 'editorial') {
+      const duration = SAY + TR.durs[i] * 1000 + GAP;
+      sceneAt(s, ms - S[i], duration);
+      return;
+    }
     const u = Math.min(1, (ms - S[i]) / FLY), e = u < .5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
     const db = ((to.bearing - f.bearing) % 360 + 540) % 360 - 180, L = k => f[k] + (to[k] - f[k]) * e;
     setView({ longitude: L('longitude'), latitude: L('latitude'), zoom: L('zoom'), pitch: L('pitch'), bearing: f.bearing + db * e });
@@ -602,6 +673,56 @@ window.tourRender = {
   },
   loaded: () => (map.layerManager?.getLayers() || []).every(l => l.isLoaded),
 };
+// Silent real-time recording; narration is mixed afterwards on the same timeline.
+function initRecordingPlayer() {
+  let stream;
+  window.player = {
+    setup(durations) {
+      const info = window.tourRender.setup(durations);
+      this.duration = info.total;
+      return info;
+    },
+    async capture({ fps = 60 } = {}) {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: fps, cursor: 'never' }, audio: false,
+        preferCurrentTab: true, selfBrowserSurface: 'include',
+      });
+      return stream.getVideoTracks()[0].getSettings();
+    },
+    async record({ bitrate = 24e6, sink }) {
+      const mimeType = ['video/mp4;codecs=avc1.640033', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm']
+        .find(m => MediaRecorder.isTypeSupported(m));
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
+      let chain = Promise.resolve(), failure = null;
+      recorder.ondataavailable = e => {
+        if (e.data.size) chain = chain.then(async () => {
+          const r = await fetch(sink, { method: 'POST', body: e.data });
+          if (!r.ok) throw Error(`recording upload: ${r.status}`);
+        }).catch(e => { failure = e; });
+      };
+      const done = new Promise(resolve => recorder.onstop = resolve);
+      const marker = document.createElement('div');
+      marker.style.cssText = 'position:fixed;left:0;top:0;width:24px;height:24px;background:#ff00ff;z-index:1000';
+      document.body.append(marker); window.tourRender.at(0);
+      const started = new Promise(resolve => recorder.onstart = () => resolve(performance.now()));
+      recorder.start(1000); const recStart = await started;
+      await new Promise(r => setTimeout(r, 300));
+      marker.remove(); const start = performance.now();
+      await new Promise(resolve => {
+        const tick = now => {
+          const t = Math.min(this.duration, now - start); window.tourRender.at(t);
+          if (t < this.duration) requestAnimationFrame(tick); else resolve();
+        };
+        requestAnimationFrame(tick);
+      });
+      const wall = performance.now() - start;
+      await new Promise(r => setTimeout(r, 300)); recorder.stop(); await done; await chain;
+      stream.getTracks().forEach(t => t.stop());
+      if (failure) throw failure;
+      return { wall, lead: (start - recStart) / 1000 };
+    },
+  };
+}
 let jaVoice = null;
 function pickVoice() {
   const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith('ja'));
@@ -614,7 +735,7 @@ const reading = t => Object.entries(TOUR.readings || {}).sort((a, b) => b[0].len
 let audioEl = null;
 function speak(text, id, done, audio) {  // prepared audio file if the step has one, else browser speech per sentence
   const parts = sentences(text);
-  document.getElementById('capText').innerHTML = parts.map((p, i) => `<span data-i="${i}">${p}</span>`).join('');
+  if (TOUR.presentation !== 'editorial') document.getElementById('capText').innerHTML = parts.map((p, i) => `<span data-i="${i}">${p}</span>`).join('');
   const mark = i => document.querySelectorAll('#capText span').forEach(s => s.classList.toggle('now', +s.dataset.i === i));
   if (audio) {  // highlight follows playback time, split by sentence length
     const cum = parts.reduce((a, p) => [...a, (a.at(-1) || 0) + p.length], []), tot = cum.at(-1);
@@ -642,37 +763,51 @@ function show(i) {
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   if (audioEl) { audioEl.pause(); audioEl = null; }
   clearInterval(yearTimer);
+  cancelAnimationFrame(camAnim);
   state.focus = st.focus || null;
   // settings accumulate along the script, so jumping to any step gives the same picture as playing to it
   applyState(Object.assign({}, ...TOUR.steps.slice(0, i + 1).map(s => s.set || {})));
   panelEl.classList.add('dim');
-  if (st.view) flyTo(viewFor(st.view, st.focus || []));
+  if (st.view && TOUR.presentation !== 'editorial') flyTo(viewFor(st.view, st.focus || []));
   capEl.hidden = false;
   document.getElementById('capPart').textContent = st.part || '';
   document.getElementById('capTitle').textContent = st.title || '';
   document.getElementById('capText').textContent = st.text;
-  if (st.yearAnim && playing) {  // step the census year while the narration runs
+  if (TOUR.presentation === 'editorial') {
+    const start = performance.now();
+    const tick = () => {
+      if (id !== run) return;
+      sceneAt(st, playing ? performance.now() - start : Math.min(2200, st.duration), st.duration);
+      if (playing) camAnim = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+  if (st.yearAnim && playing && TOUR.presentation !== 'editorial') {  // step the census year while the narration runs
     const [y0, y1] = st.yearAnim; let y = y0; applyState({ year: y });
     yearTimer = setInterval(() => { y += 5; if (y > y1) return clearInterval(yearTimer); applyState({ year: y }); }, 2600);
   }
   showPos();
   if (!playing) return;
-  setTimeout(() => speak(st.text, id, () => {  // let the camera settle, then read; move on when done
+  setTimeout(() => {
+    if (id !== run || !playing) return;
+    speak(st.text, id, () => {  // let the camera settle, then read; move on when done
     if (id !== run || !playing) return;
     if (i + 1 < TOUR.steps.length) setTimeout(() => id === run && playing && show(i + 1), 900);
     else stopTour(false);
-  }, st.audio), 1200);
+    }, st.audio);
+  }, 1200);
 }
 function playTour() { playing = true; show(step < 0 ? 0 : step); }
 function pauseTour() {
   playing = false; run++; clearInterval(yearTimer);
+  cancelAnimationFrame(camAnim);
   if (audioEl) { audioEl.pause(); audioEl = null; }
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   document.querySelectorAll('#capText span').forEach(s => s.classList.remove('now')); showPos();
 }
 function stopTour(reset = true) {
   pauseTour(); panelEl.classList.remove('dim'); state.focus = null; redraw(); drawChart();
-  if (reset) { step = -1; capEl.hidden = true; }
+  if (reset) { step = -1; capEl.hidden = true; document.getElementById('sceneCard').hidden = true; }
   showPos();
 }
 document.getElementById('tPlay').onclick = () => playing ? pauseTour() : playTour();

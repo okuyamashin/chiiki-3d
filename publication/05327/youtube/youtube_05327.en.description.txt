@@ -1,0 +1,51 @@
+Kamikoani Village in Akita Prefecture had 2,063 residents in 2020. With 92.7% of its land classified as forest and wilderness, where do people live, and how do they make a living?
+
+This video overlays small-area census data on 3D terrain to explore population change from 2000 to 2020. It examines declining national-forest-related employment, limited and scattered farmland, small-scale manufacturing, and commuting beyond the village.
+
+Japanese narration with English and Japanese subtitles. Select English in the CC menu. On-screen maps and charts are in Japanese.
+District colors represent total population, not the distribution of homes. Resident employment figures and local factory employment figures cover different populations. The maps show 2000–2020 census data; the births and deaths cited are for 2025.
+
+▼ Chapters
+0:00 Opening
+0:20 Kamikoani, a mountain village
+0:43 Limited flat land and deep snow
+1:12 Population across ten census districts
+1:37 Okitaomote and Kosawada
+2:05 Different rates of decline
+2:32 Jobs supported by national forests
+3:10 Scattered farmland, stretched farmers
+3:39 Small-scale manufacturing
+4:17 How residents’ jobs have changed
+5:00 Commuting beyond the village
+5:41 A population decline of nearly 40%
+6:17 Young people leaving, deaths exceeding births
+6:53 Changing work and life in a mountain village
+
+▼ Sources
+- Statistics Bureau of Japan / e-Stat: Population Census, 2000–2020 (population, age and residents’ employment by industry)
+https://www.e-stat.go.jp/en
+- Kamikoani Village sustainable development plan: terrain, snow and forestry employment
+https://www.vill.kamikoani.akita.jp/div/kikaku/pdf/kasotiikizizokutekihattenkeikaku.pdf
+- Fiscal 2024 paddy-field profitability plan: farming and scattered farmland
+https://www.maff.go.jp/tohoku/seisan/suiden_kosyueki/attach/pdf/syuuekiryoku_kyouka-577.pdf
+- Akita Prefecture, 2021 manufacturing report: four qualifying local establishments, 41 workers; excludes sole proprietorships and applies size and other eligibility criteria
+https://www.pref.akita.lg.jp/pages/archive/71263
+- Akita machinery and metal industry association: Nihon Kikai Kogyo’s San-i plant
+https://www2.chuokai-akita.or.jp/kikai/member/akitashi-23.htm
+- Statistics Bureau municipal statistics: commuting data from the 2020 census
+https://www.stat.go.jp/data/s-sugata/pdf/all_shi.pdf
+- Village population strategy: net outmigration among young people
+https://www.vill.kamikoani.akita.jp/div/kikaku/pdf/kikaku/senryaku/kami-jinkoubijon01.pdf
+- Village newsletter, February 2026: births and deaths in 2025
+https://www.vill.kamikoani.akita.jp/div/kikaku/pdf/kouhou/20262kouhou8-14.pdf
+
+▼ Credits
+- Terrain: GSI 10 m elevation tiles, resampled to a 30 m grid
+- Opening imagery: GSI seamless aerial photography
+- Administrative boundaries, roads, railways, rivers and lakes: MLIT National Land Numerical Information, processed
+- Census small-area boundaries: e-Stat, processed
+- 3D rendering: deck.gl
+- Japanese narration: ElevenLabs, Otani (synthetic voice)
+- Opening sound: synthesized in code
+
+#Kamikoani #Akita #Japan #Depopulation #Forestry #Geography #Census

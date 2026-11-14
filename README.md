@@ -47,6 +47,19 @@ sh scripts/publish_pages.sh 01227                    # 公開用に docs/ へコ
 
 ビューアは `output/3d/` を配信して `terrain.html?code=01227` を開きます（`python3 -m http.server 8791 --directory output/3d`）。
 
+### 上小阿仁村のビューア
+
+上小阿仁村（秋田県、`05327`）は、村の外接矩形から東西南北に約8kmの余白を取り、その範囲に周辺自治体を切り抜きます。隣接自治体の全域を含めず、小阿仁川の下流や周辺道路とのつながりを見るための範囲です。30m格子で地形を作ります。
+
+```sh
+.venv/bin/python -I scripts/build_industry.py 05
+.venv/bin/python -I scripts/build_3d_terrain.py 05 上小阿仁村 --margin-km 8
+cp docs/index.html output/3d/terrain.html
+python3 -m http.server 8791 --directory output/3d
+```
+
+`http://localhost:8791/terrain.html?code=05327` を開きます。2000〜2020年の10地区の人口・男女年齢構成・産業別就業者を表示できます。説明ツアーは `scripts/tours/05327.scenes.json` を `scripts/compile_terrain_tour.py 05327` で生成します。長期人口は準備中です。ナレーションはOtaniで生成済みで、試作動画は `output/video/movie_05327.mp4`、確認用は `output/video/movie_05327_preview.mp4` です。`--margin-km` を省略すると従来どおり隣接自治体の全域を含めます。
+
 ### 動画の書き出し
 
 動画制作の全体の手順は [VIDEO.md](VIDEO.md) にまとめています。
@@ -85,3 +98,7 @@ sh scripts/make_movie.sh 01227                  # つなげる → output/video/
 - ナレーション音声：ElevenLabs（声：Konoha、モデル：Eleven v4）
 - イントロの写真：国土地理院 全国最新写真（シームレス）
 - 3D表示：deck.gl
+
+上小阿仁村の公開ビューア：https://okuyamashin.github.io/chiiki-3d/?code=05327
+
+YouTube・noteの公開用文章、字幕、画像は [publication/05327](publication/05327/) に収録しています。本編MP4はサイズが大きいためリポジトリには含めません。

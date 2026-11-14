@@ -7,6 +7,7 @@
 // Needs: the viewer served at --url, Google Chrome, ffmpeg/ffprobe.
 // Run:   node scripts/render_tour.mjs [--code 01227] [--fps 30] [--size 1920x1080] [--ui 1.5] [--url ...]
 //        --ui scales the page (CSS pixels = size / ui) so captions and labels read well in the video.
+//        --recorded output/video/rec_<code>_h264.mp4 mixes narration onto a real-time recording instead.
 // Out:   output/video/tour_<code>.mp4  (frames in output/video/frames_tour_<code>/)
 
 import { chromium } from 'playwright-core';
@@ -24,6 +25,14 @@ const out = join(ROOT, 'output', 'video'), frames = join(out, `frames_tour_${cod
 const tour = JSON.parse(readFileSync(join(ROOT, 'output', '3d', `tour_${code}.json`), 'utf8'));
 const files = tour.steps.map(s => join(ROOT, 'output', '3d', s.audio));
 const durs = files.map(f => +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString());
+const recorded = arg('recorded', null);
+let offset = 0;
+const audioAt = durs.map(d => { const at = offset + 1200; offset += 1200 + d * 1000 + 900; return at; });
+const total = offset - 900 + 2500;
+if (recorded) {
+  const seconds = +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', recorded]).toString();
+  if (Math.abs(seconds - total / 1000) > .1) throw Error('録画と音声の時間が一致しません。台本を再コンパイルして録り直してください');
+} else {
 rmSync(frames, { recursive: true, force: true }); mkdirSync(frames, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-gpu', '--ignore-gpu-blocklist'] });
@@ -31,7 +40,7 @@ const page = await browser.newPage({ viewport: { width: Math.round(W / ui), heig
 page.on('pageerror', e => console.error('page error:', e.message));
 await page.goto(url);
 await page.waitForFunction(() => window.introRender && window.introRender.ready, null, { timeout: 120000 });
-const { total, audioAt } = await page.evaluate(d => window.tourRender.setup(d), durs);
+await page.evaluate(d => window.tourRender.setup(d), durs);
 const n = Math.ceil(total / 1000 * fps) + 1;
 console.log(`${n} frames, ${(total / 1000).toFixed(1)} s, ${tour.steps.length} steps`);
 
@@ -46,14 +55,17 @@ for (let i = 0; i < n; i++) {
   if (i % 300 === 0) console.log(`frame ${i}/${n}  ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 }
 await browser.close();
+}
 
 // narration: each step's mp3 delayed to its start, mixed, padded to the video length
 const inputs = files.flatMap(f => ['-i', f]);
 const delays = audioAt.map((ms, k) => `[${k}:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${Math.round(ms)}|${Math.round(ms)}[a${k}]`);
 const mix = `${delays.join(';')};${audioAt.map((_, k) => `[a${k}]`).join('')}amix=inputs=${files.length}:normalize=0,apad,atrim=0:${(total / 1000).toFixed(3)}[aout]`;
 const mp4 = join(out, `tour_${code}.mp4`);
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', join(frames, '%05d.jpg'), ...inputs,
+const videoInput = recorded ? ['-i', recorded] : ['-framerate', String(fps), '-i', join(frames, '%05d.jpg')];
+const videoCodec = recorded ? ['-c:v', 'copy'] : ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p'];
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...videoInput, ...inputs,
   '-filter_complex', mix.replace(/\[(\d+):a\]/g, (_, k) => `[${+k + 1}:a]`), '-map', '0:v', '-map', '[aout]',
-  '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest',
+  ...videoCodec, '-c:a', 'aac', '-b:a', '192k', '-shortest',
   '-movflags', '+faststart', mp4], { stdio: 'inherit' });
 console.log(`-> ${mp4}`);

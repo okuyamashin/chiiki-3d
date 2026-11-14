@@ -12,6 +12,7 @@ Overlays (clipped to the same area, densified so they can be draped on the terra
 
 Output: output/3d/terrain_<city_code>.json
 Run:    .venv/bin/python scripts/build_3d_terrain.py [pref_code city_name] [--mesh3] [--res 30]
+        --margin-km 8 clips surrounding municipalities to a padded rectangle (default: full neighbours).
         (default: 01 歌志内市; GSI tiles are fetched by scripts/fetch_gsi_dem.py as needed)
 """
 
@@ -256,6 +257,8 @@ out = {
                "ages": ages(k), "ind": industry(k), "pop15": pop15(k), "rings": lines(r.geometry, 0.0001, 0.0003),
                "label": list(r.geometry.representative_point().coords[0])} for k, r in small.iterrows()],
 }
+if args.margin_km is not None:
+    out["context"] = {"margin_km": args.margin_km, "bounds": [minx, miny, maxx, maxy]}
 dst.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
 zz = grid[~np.isnan(grid)]
 print(f"{CITY}: neighbors {[n for n in near.city_name if n != CITY]}, grid {len(lons)}x{len(lats)}, "
